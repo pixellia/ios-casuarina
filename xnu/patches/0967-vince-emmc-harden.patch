@@ -1,0 +1,93 @@
+diff --git a/bsd/dev/vince_emmc_hw.c b/bsd/dev/vince_emmc_hw.c
+index de3396e..b9c3911 100644
+--- a/bsd/dev/vince_emmc_hw.c
++++ b/bsd/dev/vince_emmc_hw.c
+@@ -35,6 +35,14 @@
+ #define R_R3		3u	/* 48-bit, no CRC / index check (OCR) */
+ #define R_R2		4u	/* 136-bit (CID/CSD) */
+ 
++#define CORE_POWER		0x00
++#define CORE_SW_RST		(1u << 7)
++#define CORE_HC_MODE		0x78
++#define CORE_PWRCTL_STATUS	0xdc
++#define CORE_PWRCTL_MASK	0xe0
++#define CORE_PWRCTL_CLEAR	0xe4
++#define CORE_PWRCTL_CTL		0xe8
++
+ #define ERR_TIMEOUT	(-110)
+ #define ERR_IO		(-5)
+ #define ERR_INVAL	(-22)
+@@ -95,6 +103,27 @@ static void note_error(struct emmc *e, uint8_t cmd, const char *what, uint32_t i
+ 	e->err_resp = resp;
+ }
+ 
++/*
++ * Qualcomm power-control events (bus power, IO voltage) can arrive at any time; the core keeps the
++ * command engine stopped until the event is cleared and acknowledged, which Linux does in its power
++ * IRQ handler. This polls for them: it is called while waiting for commands.
++ */
++static void pwr_poll(struct emmc *e)
++{
++	uint32_t st;
++
++	if (!e->ops->crd)
++		return;
++	st = e->ops->crd(e, CORE_PWRCTL_STATUS) & 0xf;
++	if (st) {
++		uint32_t ack = ((st & 3) ? 1u : 0u) | ((st & 0xc) ? 4u : 0u);
++
++		e->ops->cwr(e, CORE_PWRCTL_CLEAR, st);
++		e->ops->cwr(e, CORE_PWRCTL_CTL, ack);
++		e->pwr_acks++;
++	}
++}
++
+ /*
+  * Issue one command and wait for the command-complete interrupt. For R1b
+  * without data the busy wait (transfer-complete) is done here too. Data
+@@ -109,6 +138,7 @@ static int send_cmd(struct emmc *e, uint8_t idx, uint32_t arg, unsigned rtype, u
+ 	uint64_t end;
+ 	int r;
+ 
++	pwr_poll(e);
+ 	if (poll32(e, SD_PRESENT, inh, 0, 200000)) {
+ 		note_error(e, idx, "inhibit", 0, 0);
+ 		trace_add(e, idx, ERR_TIMEOUT, 0, 0);
+@@ -131,6 +161,7 @@ static int send_cmd(struct emmc *e, uint8_t idx, uint32_t arg, unsigned rtype, u
+ 
+ 	end = e->ops->us(e) + 300000;
+ 	for (;;) {
++		pwr_poll(e);
+ 		st = RD32(e, SD_INT_STATUS);
+ 		if (st & INT_ERRORS) {
+ 			note_error(e, idx, "cmd", st, 0);
+@@ -431,14 +462,6 @@ int emmc_attach(struct emmc *e)
+ 
+ /* ---- full initialisation ---- */
+ 
+-#define CORE_POWER		0x00
+-#define CORE_SW_RST		(1u << 7)
+-#define CORE_HC_MODE		0x78
+-#define CORE_PWRCTL_STATUS	0xdc
+-#define CORE_PWRCTL_MASK	0xe0
+-#define CORE_PWRCTL_CLEAR	0xe4
+-#define CORE_PWRCTL_CTL		0xe8
+-
+ static void udelay(struct emmc *e, uint32_t n)
+ {
+ 	if (e->ops->delay_us) {
+@@ -626,7 +649,13 @@ int emmc_full_init(struct emmc *e, const struct emmc_init_opts *o)
+ 		FAIL(e, r);
+ 	step(e, '2');
+ 
+-	r = send_cmd(e, 3, 2u << 16, R_R1, 0, 0, &resp);	/* CMD3: we choose RCA 2 */
++	for (int tries = 0; tries < 3; tries++) {		/* CMD3: we choose RCA 2 */
++		r = send_cmd(e, 3, 2u << 16, R_R1, 0, 0, &resp);
++		if (r == 0)
++			break;
++		step(e, 't');
++		udelay(e, 2000);
++	}
+ 	if (r)
+ 		FAIL(e, r);
+ 	e->rca = 2;

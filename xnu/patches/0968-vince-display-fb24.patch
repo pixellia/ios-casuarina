@@ -1,0 +1,284 @@
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 1d3ee17..714c7eb 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -229,6 +229,15 @@ public:
+ 	SweetSurface *fLastSurf;      /* keeps fLastVA alive */
+ 	SweetSurface *fPendHold[4], *fShowHold[4], *fRetireHold[4];   /* in-use holds */
+ 	void          fadeStep(const uint8_t *src, uint32_t srcStride, uint32_t step);
++	/*
++	 * vince: no MDP/DSI driver. The panel is the packed 24 bpp buffer LK left scanned out; frames are
++	 * composed in the default surface (32 bpp, logical size, fShadowVA) and converted into it.
++	 */
++	SweetSurface *fPanelSurf;     /* the panel memory (fPixels maps it) */
++	uintptr_t     fShadowVA;      /* kernel mapping of fSurface, or 0 when the panel is scanned directly */
++	uint16_t     *fXMap;          /* panel column -> logical column */
++	bool          startVince(void);
++	void          blitVince(void);
+ 
+ 	bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
+ 	IOReturn setProperties(OSObject *properties) APPLE_KEXT_OVERRIDE;
+@@ -316,6 +325,9 @@ AppleCLCD::start(IOService *provider)
+ 	topaz_audio_init();
+ 	sweet_amfi_service_init();
+ 	sweet_busy_init();
++#if defined(VINCE)
++	return startVince();
++#endif
+ 	PE_current_console(&video);
+ 	fPhys = video.v_baseAddr;
+ 	fWidth = (uint32_t)video.v_width;
+@@ -477,6 +489,104 @@ AppleCLCD::start(IOService *provider)
+ 	return true;
+ }
+ 
++#if defined(VINCE)
++/* The panel as LK left it: packed 24 bpp (bytes B, G, R), 1080x2160, in DDR. */
++#define VINCE_FB_PHYS           0x90001000ull
++#define VINCE_FB_W              1080
++#define VINCE_FB_H              2160
++#define VINCE_FB_STRIDE         3240
++
++bool
++AppleCLCD::startVince(void)
++{
++	int native = 0;
++
++	fPhys = VINCE_FB_PHYS;
++	fWidth = VINCE_FB_W;
++	fHeight = VINCE_FB_H;
++	fRowBytes = VINCE_FB_STRIDE;
++	(void)PE_parse_boot_argn("sweetfb_native", &native, sizeof(native));
++	fLogicalW = fWidth;
++	fLogicalH = fHeight;
++	if (!native) {
++		/* UIKit only knows the iPhone X layout (see SWEET_FB_LOGICAL_W): scaled down to the panel */
++		fLogicalW = SWEET_FB_LOGICAL_W;
++		fLogicalH = SWEET_FB_LOGICAL_H;
++	}
++	fOffX = fOffY = 0;
++	fLock = IOLockAlloc();
++	fClients = OSArray::withCapacity(4);
++	fPanelSurf = sweet_surface_create_physical(fPhys, fWidth, fHeight, fRowBytes, SWEET_FB_FORMAT_BGRA);
++	fPixels = fPanelSurf != NULL ? fPanelSurf->kernelAddress() : 0;
++	fSurface = sweet_surface_create_buffer(fLogicalW, fLogicalH, SWEET_FB_FORMAT_BGRA);
++	fShadowVA = fSurface != NULL ? fSurface->kernelAddress() : 0;
++	fWorkLoop = IOWorkLoop::workLoop();
++	fXMap = (uint16_t *)IOMallocData(fWidth * sizeof(uint16_t));
++	if (fLock == NULL || fClients == NULL || fPixels == 0 || fShadowVA == 0 || fWorkLoop == NULL || fXMap == NULL) {
++		IOLog("VINCE FB: setup failed (panel %#lx shadow %#lx)\n", (unsigned long)fPixels, (unsigned long)fShadowVA);
++		fShadowVA = 0;
++		return false;
++	}
++	for (uint32_t x = 0; x < fWidth; x++) {
++		fXMap[x] = (uint16_t)(((uint64_t)x * fLogicalW) / fWidth);
++	}
++	fVsync = IOTimerEventSource::timerEventSource(this, &AppleCLCD::vsyncFired);
++	if (fVsync == NULL || fWorkLoop->addEventSource(fVsync) != kIOReturnSuccess) {
++		IOLog("VINCE FB: no vsync timer\n");
++		fShadowVA = 0;
++		return false;
++	}
++	uint32_t accelOn = 1;
++	(void)PE_parse_boot_argn("sweetaccel", &accelOn, sizeof(accelOn));
++	IOAcceleratorES *accel = accelOn ? OSTypeAlloc(IOAcceleratorES) : NULL;
++	if (accel != NULL && accel->init()) {
++		accel->setName("sgx");
++		if (accel->attach(this)) {
++			accel->registerService();
++			IOLog("VINCE FB: empty IOAcceleratorES published (no 30 s wait in CAMetalContextCreate)\n");
++		}
++	}
++	OSSafeReleaseNULL(accel);
++	uint32_t hz = 10;
++	(void)PE_parse_boot_argn("sweetfb_hz", &hz, sizeof(hz));
++	fFlushTicks = (hz == 0 || hz >= 60) ? 1 : 60 / hz;
++	fPanelUS = 8333;
++	fVsync->setTimeoutUS(SWEET_FB_VSYNC_US);
++	publishModes();
++	setProperty(kIOUserClientClassKey, "IOMobileFramebufferUserClient");
++	setProperty("external", false);
++	setProperty("DisplayPipePlaneBaseAlignment", 64ULL, 32);
++	registerService();
++	IOLog("VINCE FB: AppleCLCD panel %ux%u packed 24 bpp stride %u at 0x%llx, frames %ux%u, default surface %u, %u Hz\n",
++	    fWidth, fHeight, fRowBytes, fPhys, fLogicalW, fLogicalH, fSurface->id, 60 / fFlushTicks);
++	return true;
++}
++
++/*
++ * Convert the shadow (BGRA, logical size) into the panel: 4 pixels make 3 words. Nearest
++ * neighbour when the logical frame is larger than the panel.
++ */
++void
++AppleCLCD::blitVince(void)
++{
++	const uint32_t *shadow = (const uint32_t *)fShadowVA;
++	uint8_t *panel = (uint8_t *)fPixels;
++
++	for (uint32_t y = 0; y < fHeight; y++) {
++		const uint32_t *row = shadow + (uint64_t)(((uint64_t)y * fLogicalH) / fHeight) * fLogicalW;
++		uint32_t *out = (uint32_t *)(panel + (uint64_t)y * fRowBytes);
++		for (uint32_t x = 0; x + 4 <= fWidth; x += 4) {
++			uint32_t p0 = row[fXMap[x]], p1 = row[fXMap[x + 1]], p2 = row[fXMap[x + 2]], p3 = row[fXMap[x + 3]];
++			out[0] = (p0 & 0x00ffffffu) | (p1 << 24);
++			out[1] = ((p1 >> 8) & 0x0000ffffu) | (p2 << 16);
++			out[2] = ((p2 >> 16) & 0x000000ffu) | (p3 << 8);
++			out += 3;
++		}
++	}
++	__asm__ volatile ("dsb sy" ::: "memory");
++}
++#endif /* VINCE */
++
+ void
+ AppleCLCD::vsyncFired(OSObject *owner, IOTimerEventSource *sender)
+ {
+@@ -508,6 +618,20 @@ AppleCLCD::vsyncFired(OSObject *owner, IOTimerEventSource *sender)
+ 		fb->fIntfFrames = frames;
+ 	}
+ 	if (fb->fPowerOff) {
++#if defined(VINCE)
++		if (fb->fShadowVA != 0) {
++			/* vince: one black frame; the backlight is not ours to switch */
++			bool first = fb->fFadeStep == 0;
++			fb->fFadeStep = 1;
++			IOLockUnlock(fb->fLock);
++			if (first) {
++				bzero((void *)fb->fPixels, (size_t)fb->fRowBytes * fb->fHeight);
++				__asm__ volatile ("dsb sy" ::: "memory");
++			}
++			sender->setTimeoutUS(SWEET_FB_VSYNC_US);
++			return;
++		}
++#endif
+ 		/*
+ 		 * topaz: fade in cached memory and flip whole frames to the MDP.
+ 		 * Fading the uncached boot framebuffer in place crawled down the panel.
+@@ -1340,6 +1464,18 @@ AppleCLCD::present(const uint8_t *rec)
+ 	 * framebuffer showed every multi-layer frame (dims, apps) drawn top-down.
+ 	 */
+ 	uint8_t *dst = fFlip[0] != NULL ? backBuffer() : (uint8_t *)fPixels;
++	uint32_t dw = fWidth, dh = fHeight, dstride = fRowBytes;
++	int32_t offx = fOffX, offy = fOffY;
++#if defined(VINCE)
++	if (fShadowVA != 0) {
++		/* composed at the logical size in the shadow, converted into the panel below */
++		dst = (uint8_t *)fShadowVA;
++		dw = fLogicalW;
++		dh = fLogicalH;
++		dstride = fLogicalW * 4;
++		offx = offy = 0;
++	}
++#endif
+ 	if (fFlip[0] == NULL && fVig0 != NULL && fScanPhys != fBootSrc) {
+ 		scanFrom(fBootSrc, fBootStride);
+ 	}
+@@ -1392,8 +1528,8 @@ AppleCLCD::present(const uint8_t *rec)
+ 			dx = dy = 0;
+ 		}
+ 		/* Logical (presented) display coordinates -> panel coordinates. */
+-		dx -= fOffX;
+-		dy -= fOffY;
++		dx -= offx;
++		dy -= offy;
+ 		if (dx < 0) {
+ 			sx -= dx;
+ 			w += dx;
+@@ -1410,11 +1546,11 @@ AppleCLCD::present(const uint8_t *rec)
+ 		if (h > (int32_t)s->height - sy) {
+ 			h = (int32_t)s->height - sy;
+ 		}
+-		if (w > (int32_t)fWidth - dx) {
+-			w = (int32_t)fWidth - dx;
++		if (w > (int32_t)dw - dx) {
++			w = (int32_t)dw - dx;
+ 		}
+-		if (h > (int32_t)fHeight - dy) {
+-			h = (int32_t)fHeight - dy;
++		if (h > (int32_t)dh - dy) {
++			h = (int32_t)dh - dy;
+ 		}
+ 		uint64_t last = (uint64_t)s->offset + (uint64_t)(sy + h - 1) * s->bytesPerRow +
+ 		    (uint64_t)(sx + w) * 4;
+@@ -1424,13 +1560,19 @@ AppleCLCD::present(const uint8_t *rec)
+ 		}
+ 		if (src != 0 && bpe == 4) {
+ 			for (int32_t y = 0; y < h; y++) {
+-				memcpy((void *)(dst + (uint64_t)(dy + y) * fRowBytes + (uint64_t)dx * 4),
++				memcpy((void *)(dst + (uint64_t)(dy + y) * dstride + (uint64_t)dx * 4),
+ 				    (const void *)(src + s->offset + (uint64_t)(sy + y) * s->bytesPerRow + (uint64_t)sx * 4),
+ 				    (size_t)w * 4);
+ 			}
+ 		}
+ 		s->release();
+ 	}
++#if defined(VINCE)
++	if (fShadowVA != 0) {
++		blitVince();
++		return;
++	}
++#endif
+ 	if (fFlip[0] != NULL) {
+ 		flipBack();
+ 	}
+diff --git a/iokit/Kernel/arm/SweetSurface.cpp b/iokit/Kernel/arm/SweetSurface.cpp
+index e17297a..5f1a798 100644
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -466,6 +466,42 @@ sweet_surface_create_physical(uint64_t phys, uint32_t width, uint32_t height,
+ 	return s;
+ }
+ 
++/*
++ * vince: ordinary cached pages published as a surface. The panel there is scanned out as packed
++ * 24 bpp, which iOS cannot draw into, so the default surface is a 32 bpp copy in plain memory and
++ * the framebuffer converts what is shown from it into the panel.
++ */
++SweetSurface *
++sweet_surface_create_buffer(uint32_t width, uint32_t height, uint32_t pixelFormat)
++{
++	SweetSurface *s = sweet_surface_alloc();
++	if (s == NULL) {
++		return NULL;
++	}
++	s->width = width;
++	s->height = height;
++	s->bytesPerRow = width * 4;
++	s->bytesPerElement = 4;
++	s->elementWidth = s->elementHeight = 1;
++	s->pixelFormat = pixelFormat;
++	s->allocSize = (uint32_t)sweet_round_upage((uint64_t)s->bytesPerRow * height);
++	IOBufferMemoryDescriptor *mem = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
++	    kIODirectionInOut | kIOMemoryKernelUserShared, s->allocSize, SWEET_UPAGE);
++	if (mem == NULL) {
++		s->release();
++		return NULL;
++	}
++	bzero(mem->getBytesNoCopy(), s->allocSize);
++	OSAddAtomic64(s->allocSize, (volatile SInt64 *)&sweet_surface_wired);   /* free() takes it back */
++	s->memory = mem;
++	s->mapCache = kIOMapDefaultCache;
++	if (!sweet_surface_publish(s)) {
++		s->release();
++		return NULL;
++	}
++	return s;
++}
++
+ mach_port_name_t
+ sweet_surface_port_in_task(SweetSurface *s, task_t task)
+ {
+diff --git a/iokit/Kernel/arm/SweetSurface.h b/iokit/Kernel/arm/SweetSurface.h
+index 5b74320..035789a 100644
+--- a/iokit/Kernel/arm/SweetSurface.h
++++ b/iokit/Kernel/arm/SweetSurface.h
+@@ -67,6 +67,9 @@ SweetSurface *sweet_surface_copy(uint32_t id);
+ SweetSurface *sweet_surface_create_physical(uint64_t phys, uint32_t width,
+     uint32_t height, uint32_t bytesPerRow, uint32_t pixelFormat);
+ 
++/* vince: a zeroed 32 bpp surface in ordinary cached memory (retained, published like the above). */
++SweetSurface *sweet_surface_create_buffer(uint32_t width, uint32_t height, uint32_t pixelFormat);
++
+ /*
+  * topaz scanout pool: physically contiguous low memory (below 4 GiB, unused by
+  * xnu, which runs in the upper DDR bank) so the MDP can fetch a surface
