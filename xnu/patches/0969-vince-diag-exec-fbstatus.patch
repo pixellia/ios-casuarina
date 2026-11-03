@@ -1,0 +1,178 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index 4710f0b..da3282d 100644
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -7481,6 +7481,73 @@ proc_process_signature(proc_t p, os_reason_t *signature_failure_reason)
+ 	return error;
+ }
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * SWEET exec trace. launchd restarts daemons that cannot work here (bluetoothd, fairplayd.H2: no
++ * hardware) every few seconds, and their lines pushed everything else off the screen. A name is
++ * printed for its first three execs and then once in fifty.
++ *
++ * Boot-arg sweetexecdeny=name,name (default: none): an exec of one of these programs fails before
++ * dyld runs, so launchd's restarts cost almost nothing on the one CPU core.
++ */
++#define SWEET_EXEC_NAMES 64
++static LCK_MTX_DECLARE_ATTR(sweet_exec_lock, &proc_lck_grp, &proc_lck_attr);
++static struct {
++	char     name[MAXCOMLEN + 1];
++	uint32_t count;
++} sweet_exec_tab[SWEET_EXEC_NAMES];
++static unsigned int sweet_exec_used;
++static char sweet_exec_deny[96];
++static bool sweet_exec_parsed;
++
++/* Counts this exec; returns true when its line is to be printed. *deny: the name is in sweetexecdeny. */
++static bool
++sweet_exec_note(const char *name, bool *deny)
++{
++	bool print = true;
++	unsigned int slot;
++
++	*deny = false;
++	lck_mtx_lock(&sweet_exec_lock);
++	if (!sweet_exec_parsed) {
++		sweet_exec_parsed = true;
++		if (!PE_parse_boot_argn("sweetexecdeny", sweet_exec_deny, sizeof(sweet_exec_deny))) {
++			sweet_exec_deny[0] = '\0';
++		}
++	}
++	for (const char *s = sweet_exec_deny; *s != '\0';) {
++		size_t len = 0;
++
++		while (s[len] != '\0' && s[len] != ',') {
++			len++;
++		}
++		if (len > 0 && strlen(name) == len && strncmp(name, s, len) == 0) {
++			*deny = true;
++		}
++		s += len;
++		if (*s == ',') {
++			s++;
++		}
++	}
++	for (slot = 0; slot < sweet_exec_used; slot++) {
++		if (strncmp(sweet_exec_tab[slot].name, name, MAXCOMLEN) == 0) {
++			break;
++		}
++	}
++	if (slot == sweet_exec_used && slot < SWEET_EXEC_NAMES) {
++		strlcpy(sweet_exec_tab[slot].name, name, sizeof(sweet_exec_tab[slot].name));
++		sweet_exec_used++;
++	}
++	if (slot < SWEET_EXEC_NAMES) {
++		uint32_t times = ++sweet_exec_tab[slot].count;
++
++		print = times <= 3 || (times % 50) == 0;
++	}
++	lck_mtx_unlock(&sweet_exec_lock);
++	return print;
++}
++#endif /* ARM64_BOARD_CONFIG_SWEET */
++
+ static int
+ process_signature(proc_t p, struct image_params *imgp)
+ {
+@@ -7568,8 +7635,16 @@ process_signature(proc_t p, struct image_params *imgp)
+ 				goto done;
+ 			}
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+-			/* SWEET runs every iOS binary this way: one short line per exec. */
+-			printf("exec %s\n", p->p_name);
++			/* SWEET runs every iOS binary this way: one short line per exec (rate limited). */
++			bool sweet_deny = false;
++			if (sweet_exec_note(p->p_name, &sweet_deny)) {
++				printf("exec %s%s\n", p->p_name, sweet_deny ? " (denied)" : "");
++			}
++			if (sweet_deny) {
++				signature_failure_reason = os_reason_create(OS_REASON_EXEC, EXEC_EXIT_REASON_WRONG_PLATFORM);
++				error = EACCES;
++				goto done;
++			}
+ 			/* topaz: does the window server get our library (GPU's OpenGL ES)? */
+ 			if (strcmp(p->p_name, "backboardd") == 0 && imgp->ip_endargv != NULL && imgp->ip_endenvv != NULL) {
+ 				const char *e = imgp->ip_endargv, *end = imgp->ip_endenvv;
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 714c7eb..766c41a 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -236,6 +236,8 @@ public:
+ 	SweetSurface *fPanelSurf;     /* the panel memory (fPixels maps it) */
+ 	uintptr_t     fShadowVA;      /* kernel mapping of fSurface, or 0 when the panel is scanned directly */
+ 	uint16_t     *fXMap;          /* panel column -> logical column */
++	uint32_t      fVinceBlits;    /* panel conversions so far, and the last one's time */
++	uint32_t      fVinceBlitUS;
+ 	bool          startVince(void);
+ 	void          blitVince(void);
+ 
+@@ -536,6 +538,7 @@ AppleCLCD::startVince(void)
+ 		fShadowVA = 0;
+ 		return false;
+ 	}
++	setProperty("IOMFBBrightnessLevel", (unsigned long long)(200u << 16), 32);     /* as on sweet */
+ 	uint32_t accelOn = 1;
+ 	(void)PE_parse_boot_argn("sweetaccel", &accelOn, sizeof(accelOn));
+ 	IOAcceleratorES *accel = accelOn ? OSTypeAlloc(IOAcceleratorES) : NULL;
+@@ -571,6 +574,7 @@ AppleCLCD::blitVince(void)
+ {
+ 	const uint32_t *shadow = (const uint32_t *)fShadowVA;
+ 	uint8_t *panel = (uint8_t *)fPixels;
++	uint64_t began = mach_absolute_time(), took;
+ 
+ 	for (uint32_t y = 0; y < fHeight; y++) {
+ 		const uint32_t *row = shadow + (uint64_t)(((uint64_t)y * fLogicalH) / fHeight) * fLogicalW;
+@@ -584,6 +588,9 @@ AppleCLCD::blitVince(void)
+ 		}
+ 	}
+ 	__asm__ volatile ("dsb sy" ::: "memory");
++	absolutetime_to_nanoseconds(mach_absolute_time() - began, &took);
++	fVinceBlitUS = (uint32_t)(took / 1000);
++	fVinceBlits++;
+ }
+ #endif /* VINCE */
+ 
+@@ -611,6 +618,14 @@ AppleCLCD::vsyncFired(OSObject *owner, IOTimerEventSource *sender)
+ 		    (IOMobileFramebufferUserClient *)fb->fClients->getObject(i);
+ 		client->notify(SWEET_FB_NOTIFY_VSYNC, values, 6);
+ 	}
++#if defined(VINCE)
++	if (fb->fShadowVA != 0 && (count % 600) == 0) {
++		/* every 10 s: is iOS connected to the display and drawing into it? */
++		IOLog("VINCE FB: %llu s: clients %u swaps begun %u shown %u (last %u us) display %s\n",
++		    count / 60, fb->fClients->getCount(), fb->fSwapID, fb->fVinceBlits, fb->fVinceBlitUS,
++		    fb->fPowerOff ? "off" : "on");
++	}
++#endif
+ 	if (fb->fIntf1 != NULL && (count % 300) == 0) {
+ 		uint32_t frames = fb->fIntf1[(0x800 + 0x0ac) / 4];
+ 		IOLog("SWEET INTF1: %u frames in 5 s (line %u, te_en %#x)\n",
+diff --git a/osfmk/arm64/vince_diag.c b/osfmk/arm64/vince_diag.c
+index 74e7c0b..1a8ceab 100644
+--- a/osfmk/arm64/vince_diag.c
++++ b/osfmk/arm64/vince_diag.c
+@@ -287,8 +287,12 @@ vd_thread(void *param __unused, wait_result_t wr __unused)
+ {
+ 	static const unsigned int dump_at[] = { 8, 24, 60 };
+ 	uint64_t t0 = mach_absolute_time();
+-	unsigned int dumped = 0, next_beat = 3;
++	unsigned int dumped = 0, next_beat = 3, beat = 10;
+ 
++	(void)PE_parse_boot_argn("vincediag_beat", &beat, sizeof(beat));
++	if (beat == 0) {
++		beat = 10;
++	}
+ 	vd_syms_init();
+ 	printf("VDIAG start: symbols %s (%u)\n", vd_syms_ok ? "ok" : "none", vd_nn);
+ 	for (;;) {
+@@ -303,7 +307,7 @@ vd_thread(void *param __unused, wait_result_t wr __unused)
+ 			vd_dump_threads();
+ 			vd_irq_line(s);
+ 		} else if (s >= next_beat) {
+-			next_beat = s + 3;
++			next_beat = s + beat;
+ 			vd_irq_line(s);
+ 		}
+ 		/* let anything runnable go first; never sleeps, so it needs no timer interrupt */
