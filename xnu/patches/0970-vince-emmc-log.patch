@@ -1,0 +1,222 @@
+diff --git a/bsd/dev/vince_emmc.c b/bsd/dev/vince_emmc.c
+index b54e12a..c29be85 100644
+--- a/bsd/dev/vince_emmc.c
++++ b/bsd/dev/vince_emmc.c
+@@ -36,6 +36,7 @@
+ #include <kern/locks.h>
+ #include <kern/clock.h>
+ #include <kern/sched_prim.h>
++#include <kern/thread.h>
+ #include <machine/machine_routines.h>
+ #include <arm/caches_internal.h>
+ #include <vm/pmap.h>
+@@ -707,6 +708,201 @@ ve_writetest(void)
+ 	    (unsigned long long)lba, ok1 ? "ok" : "FAILED", ok8 ? "ok" : "FAILED", okr ? "yes" : "NO");
+ }
+ 
++/*
++ * Persistent console log on the eMMC (boot-arg vincelog, default on; vincelogsecs, default 5).
++ *
++ * The console ring of bsd/dev/sweet_ufs.c (sweet_log_append, fed from _cnputs, so kernel printf and
++ * /dev/console writes of every daemon end up in it) is copied to the LAST 1025 x 4 KiB of the selected
++ * partition, the same place and layout as the sweet UFS log, so tools/sweet-log-pull.sh and
++ * tools/sweet-log.py read it from a recovery unchanged:
++ *   area start (4 KiB block 0): "SWEETLOG" | u32 version 1 | u32 ring size | u64 stream bytes | u64 seq
++ *   area start + 4 KiB: the 4 MiB ring, byte n of the console stream at ring offset n % size.
++ * Writes happen only with emmcrw=1 (ve.writable) and only when the HFS+ volume at the start of the
++ * partition ends clearly before the log area; vincelog=2 skips that check (non-HFS partition, own risk).
++ */
++extern uint32_t sweet_log_copy(uint64_t *pos, char *out, uint32_t max);   /* bsd/dev/sweet_ufs.c */
++extern uint64_t sweet_log_position(void);
++
++#define VL_RING         (4u << 20)
++#define VL_HDR_SECT     8u                                  /* one 4 KiB block for the header */
++#define VL_AREA_SECT    (VL_HDR_SECT + VL_RING / EMMC_BLK)  /* 8200 sectors */
++#define VL_SECS_DEF     5u
++#define VL_REWRITE      4096u                               /* bytes re-copied each round (races with the appenders) */
++
++struct vl_header {
++	char magic[8];
++	uint32_t version, size;
++	uint64_t total, seq;
++};
++
++extern int hz;      /* bsd/sys/kernel.h */
++static int vl_chan;
++static uint32_t vl_secs = VL_SECS_DEF;
++static uint64_t vl_base;                                    /* first sector of the area */
++
++/* 0 = the area is outside the HFS+ volume that starts the partition (or the check is off). */
++static int
++vl_check_volume(uint32_t mode)
++{
++	const uint8_t *b = ve.e.bounce;
++	uint64_t vol_bytes, area_bytes = (uint64_t)VL_AREA_SECT * EMMC_BLK, part_bytes = ve.nsect * EMMC_BLK;
++	uint32_t bs, nb;
++	int r;
++
++	if (mode == 2) {
++		return 0;
++	}
++	r = ve_xfer(ve.first, 4, false);
++	if (r) {
++		return r;
++	}
++	/* HFS+ volume header at byte 1024: signature H+ / HX, blockSize at +40, totalBlocks at +44 (big endian) */
++	if (!(b[1024] == 'H' && (b[1025] == '+' || b[1025] == 'X'))) {
++		printf("VINCE LOG: no HFS+ volume at the start of \"%s\", log off (vincelog=2 forces it)\n", ve.name);
++		return ENOTSUP;
++	}
++	bs = ((uint32_t)b[1024 + 40] << 24) | ((uint32_t)b[1024 + 41] << 16) | ((uint32_t)b[1024 + 42] << 8) | b[1024 + 43];
++	nb = ((uint32_t)b[1024 + 44] << 24) | ((uint32_t)b[1024 + 45] << 16) | ((uint32_t)b[1024 + 46] << 8) | b[1024 + 47];
++	vol_bytes = (uint64_t)bs * nb;
++	if (bs < 512 || (bs & (bs - 1)) || vol_bytes == 0) {
++		printf("VINCE LOG: odd HFS+ geometry (block %u x %u), log off\n", bs, nb);
++		return EINVAL;
++	}
++	if (vol_bytes + area_bytes + (1u << 20) > part_bytes) {
++		printf("VINCE LOG: HFS+ volume (%llu MiB) leaves no room at the end of the %llu MiB partition, log off\n"
++		    "VINCE LOG: vincelog=2 writes there anyway (may damage the volume's backup header and late files)\n",
++		    (unsigned long long)(vol_bytes >> 20), (unsigned long long)(part_bytes >> 20));
++		return ENOSPC;
++	}
++	printf("VINCE LOG: HFS+ volume %llu MiB of %llu MiB, the log area is free\n", (unsigned long long)(vol_bytes >> 20),
++	    (unsigned long long)(part_bytes >> 20));
++	return 0;
++}
++
++/* Copy console stream bytes [from, end of stream) into the ring area. Returns 0 and the end position, or an errno. */
++static int
++vl_flush(uint64_t from, uint64_t *end)
++{
++	uint64_t pos = from;
++	uint8_t *bounce = ve.e.bounce;
++	int r = 0;
++
++	while (r == 0) {
++		uint64_t tail_pos = sweet_log_position();
++		if (pos >= tail_pos) {
++			break;
++		}
++		uint32_t off = (uint32_t)(pos % VL_RING);
++		uint32_t want = (uint32_t)MIN(MIN(tail_pos - pos, (uint64_t)(VL_RING - off)), (uint64_t)EMMC_BOUNCE);
++		uint64_t p = pos;
++		uint32_t n = sweet_log_copy(&p, (char *)bounce, want);
++
++		if (n == 0 || p - n != pos) {
++			/* the ring lapped us while copying: restart the next round from a fresh position */
++			return EAGAIN;
++		}
++		uint32_t sects = (n + EMMC_BLK - 1) / EMMC_BLK;
++		if (n % EMMC_BLK) {
++			bzero(bounce + n, EMMC_BLK - n % EMMC_BLK);
++		}
++		r = ve_write_sectors(vl_base + VL_HDR_SECT + off / EMMC_BLK, sects);
++		if (r == 0) {
++			pos = p;
++			if (n % EMMC_BLK) {
++				break;      /* ended inside a sector: the partial sector is rewritten by the next round */
++			}
++		}
++	}
++	*end = pos;
++	return r;
++}
++
++/* One flush round. 0 = done (or nothing new), EAGAIN = the ring lapped us (start over), else an errno. */
++static int
++vl_round(uint64_t *flushed, uint64_t *seq)
++{
++	uint64_t now = sweet_log_position();
++
++	if (now == *flushed) {
++		return 0;
++	}
++	/* start on a sector boundary a little before what is already on disk, never more than a ring back */
++	uint64_t from = *flushed > VL_REWRITE ? (*flushed - VL_REWRITE) & ~(uint64_t)(EMMC_BLK - 1) : 0;
++	uint64_t oldest = now > VL_RING - VL_REWRITE ?
++	    (now - (VL_RING - VL_REWRITE) + EMMC_BLK - 1) & ~(uint64_t)(EMMC_BLK - 1) : 0;
++	uint64_t end = 0;
++	int r;
++
++	if (from < oldest) {
++		from = oldest;
++	}
++	lck_mtx_lock(&vince_emmc_lock);
++	r = vl_flush(from, &end);
++	if (r == 0) {
++		struct vl_header h = {
++			.magic = { 'S', 'W', 'E', 'E', 'T', 'L', 'O', 'G' },
++			.version = 1, .size = VL_RING, .total = end, .seq = ++*seq,
++		};
++		bzero(ve.e.bounce, EMMC_BLK);
++		memcpy(ve.e.bounce, &h, sizeof(h));
++		r = ve_write_sectors(vl_base, 1);
++	}
++	lck_mtx_unlock(&vince_emmc_lock);
++	if (r == 0) {
++		*flushed = end;
++	} else if (r == EAGAIN) {
++		*flushed = 0;
++	}
++	return r;
++}
++
++static void
++vl_thread(__unused void *arg, __unused wait_result_t wr)
++{
++	uint64_t flushed = 0, seq = 0;
++	int fails = 0;
++
++	printf("VINCE LOG: console log to the last %u KiB of \"%s\" (sector %llu), every %u s\n",
++	    VL_AREA_SECT * EMMC_BLK >> 10, ve.name, (unsigned long long)vl_base, vl_secs);
++	for (;;) {
++		(void)tsleep(&vl_chan, PZERO, "vincelog", hz * (int)vl_secs);
++		int r = vl_round(&flushed, &seq);
++
++		if (r == 0 || r == EAGAIN) {
++			fails = 0;
++		} else if (++fails >= 3) {
++			printf("VINCE LOG: write failed (%d), stopping\n", r);
++			return;
++		}
++	}
++}
++
++static void
++vl_start(void)
++{
++	uint32_t mode = 1;
++	thread_t thread;
++
++	PE_parse_boot_argn("vincelog", &mode, sizeof(mode));
++	if (!mode || !ve.writable || ve.nsect < 4 * (uint64_t)VL_AREA_SECT) {
++		return;
++	}
++	PE_parse_boot_argn("vincelogsecs", &vl_secs, sizeof(vl_secs));
++	if (vl_secs == 0 || vl_secs > 60) {
++		vl_secs = VL_SECS_DEF;
++	}
++	vl_base = ve.first + (ve.nsect & ~(uint64_t)7) - VL_AREA_SECT;
++	lck_mtx_lock(&vince_emmc_lock);
++	int r = vl_check_volume(mode);
++	lck_mtx_unlock(&vince_emmc_lock);
++	if (r) {
++		return;
++	}
++	if (kernel_thread_start(vl_thread, NULL, &thread) == KERN_SUCCESS) {
++		thread_deallocate(thread);
++	}
++}
++
+ static int
+ vince_emmc_init(void)
+ {
+@@ -816,6 +1012,7 @@ vince_emmc_init(void)
+ 	}
+ 	ve.ready = true;
+ 	printf("VINCE EMMC: emmcroot0 ready, %s\n", ve.writable ? "READ-WRITE" : "read-only");
++	vl_start();
+ 	return 0;
+ }
+ 

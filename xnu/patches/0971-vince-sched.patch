@@ -1,0 +1,120 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index da3282d..4efaffe 100644
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -388,6 +388,9 @@ static errno_t exec_handle_port_actions(struct image_params *imgp,
+ static errno_t exec_handle_spawnattr_policy(proc_t p, thread_t thread, int psa_apptype, uint64_t psa_qos_clamp,
+     task_role_t psa_darwin_role, struct exec_port_actions *port_actions);
+ static void exec_port_actions_destroy(struct exec_port_actions *port_actions);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++static void sweet_exec_sched(proc_t p, task_t task);
++#endif
+ 
+ /*
+  * exec_add_user_string
+@@ -4456,6 +4459,13 @@ bad:
+ 		task_transfer_turnstile_watchports(old_task, new_task, imgp->ip_new_thread);
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	/* after the launchd job's own policy, so that it wins over ProcessType */
++	if (error == 0) {
++		sweet_exec_sched(p, new_task);
++	}
++#endif
++
+ 	if (error == 0 && imgp->ip_px_sa != NULL) {
+ 		struct _posix_spawnattr *psa = (struct _posix_spawnattr *) imgp->ip_px_sa;
+ 
+@@ -7546,6 +7556,91 @@ sweet_exec_note(const char *name, bool *deny)
+ 	lck_mtx_unlock(&sweet_exec_lock);
+ 	return print;
+ }
++
++/*
++ * Scheduling for the one CPU core of vince. A few dozen daemons (and launchd's restarts of the ones
++ * that crash) compete with backboardd and SpringBoard at the same priority, and the window server
++ * never got to open the display. After every posix_spawn:
++ *   boot-arg vinceprio=a,b (default backboardd,SpringBoard; 0 = off): darwin-background off and task
++ *     importance +vinceprion (default 20, 0..20) for the named processes;
++ *   boot-arg vincebg=a,b or * (default *; 0 = off): every other process except xpcproxy (the stub
++ *     that execs the real daemon) runs as darwin-background: its threads drop to the background
++ *     QoS band, below everything interactive, and still run whenever the core would be idle.
++ */
++static char sweet_sched_hi[96] = "backboardd,SpringBoard";
++static char sweet_sched_bg[96] = "*";
++static uint32_t sweet_sched_boost = 20;
++static bool sweet_sched_parsed;
++static uint32_t sweet_sched_nhi, sweet_sched_nbg;
++
++static bool
++sweet_name_listed(const char *list, const char *name)
++{
++	size_t nlen = strlen(name);
++
++	for (const char *s = list; *s != '\0';) {
++		size_t len = 0;
++
++		while (s[len] != '\0' && s[len] != ',') {
++			len++;
++		}
++		if (len > 0 && ((len == 1 && s[0] == '*') || (len == nlen && strncmp(name, s, len) == 0))) {
++			return true;
++		}
++		s += len;
++		if (*s == ',') {
++			s++;
++		}
++	}
++	return false;
++}
++
++static void
++sweet_exec_sched(proc_t p, task_t task)
++{
++	bool hi, bg;
++	uint32_t nhi = 0, nbg = 0;
++
++	lck_mtx_lock(&sweet_exec_lock);
++	if (!sweet_sched_parsed) {
++		sweet_sched_parsed = true;
++		(void)PE_parse_boot_argn("vinceprio", sweet_sched_hi, sizeof(sweet_sched_hi));
++		(void)PE_parse_boot_argn("vincebg", sweet_sched_bg, sizeof(sweet_sched_bg));
++		(void)PE_parse_boot_argn("vinceprion", &sweet_sched_boost, sizeof(sweet_sched_boost));
++		if (strcmp(sweet_sched_hi, "0") == 0) {
++			sweet_sched_hi[0] = '\0';
++		}
++		if (strcmp(sweet_sched_bg, "0") == 0) {
++			sweet_sched_bg[0] = '\0';
++		}
++		if (sweet_sched_boost > 20) {
++			sweet_sched_boost = 20;
++		}
++		printf("vince sched: boost \"%s\" by %u, darwin-background for \"%s\"\n", sweet_sched_hi,
++		    sweet_sched_boost, sweet_sched_bg);
++	}
++	hi = sweet_name_listed(sweet_sched_hi, p->p_name) && strcmp(sweet_sched_hi, "*") != 0;
++	bg = !hi && strcmp(p->p_name, "xpcproxy") != 0 && sweet_name_listed(sweet_sched_bg, p->p_name);
++	if (hi) {
++		nhi = ++sweet_sched_nhi;
++	}
++	if (bg) {
++		nbg = ++sweet_sched_nbg;
++	}
++	lck_mtx_unlock(&sweet_exec_lock);
++
++	if (hi) {
++		/* xpcproxy may have demoted this very task before exec'ing the real program */
++		proc_set_task_policy(task, TASK_POLICY_ATTRIBUTE, TASK_POLICY_DARWIN_BG, TASK_POLICY_DISABLE);
++		(void)task_importance(task, (integer_t)sweet_sched_boost);
++		printf("vince sched: %s boosted (#%u)\n", p->p_name, nhi);
++	} else if (bg) {
++		proc_set_task_policy(task, TASK_POLICY_ATTRIBUTE, TASK_POLICY_DARWIN_BG, TASK_POLICY_ENABLE);
++		if (nbg <= 3 || (nbg % 50) == 0) {
++			printf("vince sched: %s background (#%u)\n", p->p_name, nbg);
++		}
++	}
++}
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+ 
+ static int
