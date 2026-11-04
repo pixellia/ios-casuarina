@@ -1,0 +1,155 @@
+diff --git a/osfmk/arm64/vince_diag.c b/osfmk/arm64/vince_diag.c
+index 1a8ceab..5cda35c 100644
+--- a/osfmk/arm64/vince_diag.c
++++ b/osfmk/arm64/vince_diag.c
+@@ -26,6 +26,8 @@
+ #include <kern/queue.h>
+ #include <kern/clock.h>
+ #include <kern/sched_prim.h>
++#include <ipc/ipc_port.h>
++#include <mach/message.h>
+ #include <kern/misc_protos.h>
+ #include <mach-o/loader.h>
+ #include <mach-o/nlist.h>
+@@ -282,6 +284,108 @@ vd_timer_line(void)
+ 	    (int)ml_get_interrupts_enabled());
+ }
+ 
++/*
++ * Mach send trace (boot-arg vinceipc=name,name; default "backboardd"; "-" = off). ipc_kmsg_send() calls
++ * vince_ipc_note() with the destination port locked for every message; for the watched senders it
++ * records who receives it (pid of the receiving task: 1 = launchd holds the port of a service that is
++ * not running yet, 0 = kernel/reply port), the message id and the port's name in the receiver's
++ * space. vd_thread prints the records: "VIPC backboardd[56] -> launchd[1] id 0x... port 0x...".
++ * 600 lines at most. Answers "which service did the blocked process ask last?".
++ */
++extern void proc_selfname(char *buf, int size);
++extern void proc_name(int pid, char *buf, int size);
++
++struct vipc_rec {
++	uint32_t spid, rpid, id, bits, rname;
++};
++#define VIPC_N 1024
++static struct vipc_rec vipc_ring[VIPC_N];
++static uint32_t vipc_head;          /* next slot to fill (atomic) */
++static uint32_t vipc_tail;          /* next slot to print (vd_thread only) */
++static uint32_t vipc_printed;
++static char vipc_names[64];
++static volatile int vipc_on;
++
++void vince_ipc_note(mach_msg_header_t *hdr, ipc_port_t port);
++
++void
++vince_ipc_note(mach_msg_header_t *hdr, ipc_port_t port)
++{
++	char me[20];
++	uintptr_t rt = 0;
++
++	if (!vipc_on) {
++		return;
++	}
++	proc_selfname(me, sizeof(me));
++	/* name list match: whole names between commas */
++	size_t n = strlen(me);
++	bool hit = false;
++	for (const char *t = vipc_names; *t != '\0';) {
++		const char *e = strchr(t, ',');
++		size_t tl = e ? (size_t)(e - t) : strlen(t);
++		if (tl == n && n > 0 && strncmp(t, me, n) == 0) {
++			hit = true;
++			break;
++		}
++		if (e == NULL) {
++			break;
++		}
++		t = e + 1;
++	}
++	if (!hit) {
++		return;
++	}
++	uint32_t at = __atomic_fetch_add(&vipc_head, 1, __ATOMIC_RELAXED) % VIPC_N;
++	struct vipc_rec *r = &vipc_ring[at];
++	r->spid = (uint32_t)task_pid(current_task());
++	r->rpid = (uint32_t)ipc_port_get_receiver_task_locked(port, &rt);
++	r->id = (uint32_t)hdr->msgh_id;
++	r->bits = hdr->msgh_bits;
++	r->rname = (uint32_t)port->ip_receiver_name;
++}
++
++/* thread context only (proc_name may take locks) */
++static void
++vipc_drain(void)
++{
++	uint32_t head = __atomic_load_n(&vipc_head, __ATOMIC_RELAXED);
++
++	if (!vipc_on || vipc_printed >= 600) {
++		return;
++	}
++	if (head - vipc_tail > VIPC_N) {
++		vipc_tail = head - VIPC_N;
++	}
++	while (vipc_tail != head && vipc_printed < 600) {
++		struct vipc_rec r = vipc_ring[vipc_tail % VIPC_N];
++		char sn[20] = "?", rn[20] = "?";
++
++		vipc_tail++;
++		proc_name((int)r.spid, sn, sizeof(sn));
++		if ((int)r.rpid > 0) {
++			proc_name((int)r.rpid, rn, sizeof(rn));
++		} else {
++			strlcpy(rn, (int)r.rpid == 0 ? "kernel" : "reply/none", sizeof(rn));
++		}
++		printf("VIPC %s[%u] -> %s[%d] id 0x%x name 0x%x bits 0x%x\n", sn, r.spid, rn, (int)r.rpid, r.id, r.rname, r.bits);
++		vipc_printed++;
++	}
++	if (vipc_printed >= 600) {
++		printf("VIPC: 600 records, trace stopped\n");
++	}
++}
++
++static void
++vipc_init(void)
++{
++	strlcpy(vipc_names, "backboardd", sizeof(vipc_names));
++	(void)PE_parse_boot_argn("vinceipc", vipc_names, sizeof(vipc_names));
++	if (vipc_names[0] != '-' && vipc_names[0] != '\0') {
++		__atomic_store_n(&vipc_on, 1, __ATOMIC_RELEASE);
++	}
++}
++
+ static void
+ vd_thread(void *param __unused, wait_result_t wr __unused)
+ {
+@@ -293,6 +397,7 @@ vd_thread(void *param __unused, wait_result_t wr __unused)
+ 	if (beat == 0) {
+ 		beat = 10;
+ 	}
++	vipc_init();
+ 	vd_syms_init();
+ 	printf("VDIAG start: symbols %s (%u)\n", vd_syms_ok ? "ok" : "none", vd_nn);
+ 	for (;;) {
+@@ -310,6 +415,7 @@ vd_thread(void *param __unused, wait_result_t wr __unused)
+ 			next_beat = s + beat;
+ 			vd_irq_line(s);
+ 		}
++		vipc_drain();
+ 		/* let anything runnable go first; never sleeps, so it needs no timer interrupt */
+ 		thread_yield_internal(1);
+ 	}
+diff --git a/osfmk/ipc/ipc_kmsg.c b/osfmk/ipc/ipc_kmsg.c
+index b4d1276..0a563ff 100644
+--- a/osfmk/ipc/ipc_kmsg.c
++++ b/osfmk/ipc/ipc_kmsg.c
+@@ -2911,6 +2911,12 @@ ipc_kmsg_send(
+ 	port = hdr->msgh_remote_port;
+ 	assert(IP_VALID(port));
+ 	ip_mq_lock(port);
++#if defined(VINCE)
++	{
++		extern void vince_ipc_note(mach_msg_header_t *, ipc_port_t);   /* osfmk/arm64/vince_diag.c */
++		vince_ipc_note(hdr, port);
++	}
++#endif
+ 
+ 	/*
+ 	 * If the destination has been guarded with a reply context, and the
