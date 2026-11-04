@@ -1,0 +1,157 @@
+From 90e348c4b741e79a95d4d7b2ffae23801d5f2ed6 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 11:21:22 +0000
+Subject: [PATCH] 0974 vince: sampler prints workqueue state and unread port
+ messages
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/sweet_sample.c | 27 ++++++++++++++++++
+ osfmk/kern/exception.c | 64 ++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 91 insertions(+)
+
+diff --git a/bsd/dev/sweet_sample.c b/bsd/dev/sweet_sample.c
+index 814a423..4f8d57d 100644
+--- a/bsd/dev/sweet_sample.c
++++ b/bsd/dev/sweet_sample.c
+@@ -20,6 +20,7 @@
+ #include <kern/task.h>
+ #include <kern/thread.h>
+ #include <pexpert/pexpert.h>
++#include <pthread/workqueue_internal.h>
+ 
+ extern task_t proc_task(proc_t);
+ extern int hz;
+@@ -47,6 +48,31 @@ sweet_sample_wanted(const char *name)
+ 
+ extern void sweet_sample_task(const char *name, int pid, task_t task);  /* osfmk/kern/exception.c */
+ 
++/*
++ * Workqueue state of a process (read without the wq lock, diagnostics only):
++ * requests waiting, threads, idle threads, scheduled per bucket. Requests
++ * waiting while a thread idles means the kernel does not hand out work.
++ */
++static void
++sweet_sample_wq(const char *name, proc_t p)
++{
++	struct workqueue *wq = proc_get_wqptr(p);
++
++	if (wq == NULL) {
++		printf("SMP %s[%d] wq: none\n", name, proc_pid(p));
++		return;
++	}
++	printf("SMP %s[%d] wq: reqcount %u nthreads %u idle %u sched %u constrained %u dying %u "
++	    "creations %u fulfilled %u flags 0x%x creator %d buckets %u %u %u %u %u %u %u\n",
++	    name, proc_pid(p), wq->wq_reqcount, wq->wq_nthreads, wq->wq_thidlecount,
++	    wq->wq_threads_scheduled, wq->wq_constrained_threads_scheduled, wq->wq_thdying_count,
++	    wq->wq_creations, wq->wq_fulfilled, (unsigned)os_atomic_load(&wq->wq_flags, relaxed),
++	    wq->wq_creator != NULL ? 1 : 0,
++	    wq->wq_thscheduled_count[0], wq->wq_thscheduled_count[1], wq->wq_thscheduled_count[2],
++	    wq->wq_thscheduled_count[3], wq->wq_thscheduled_count[4], wq->wq_thscheduled_count[5],
++	    wq->wq_thscheduled_count[6]);
++}
++
+ static int
+ sweet_sample_proc(proc_t p, __unused void *arg)
+ {
+@@ -56,6 +82,7 @@ sweet_sample_proc(proc_t p, __unused void *arg)
+ 		task_t task = proc_task(p);
+ 		if (task != TASK_NULL) {
+ 			sweet_sample_task(name, proc_pid(p), task);
++			sweet_sample_wq(name, p);
+ 		}
+ 	}
+ 	return PROC_RETURNED;
+diff --git a/osfmk/kern/exception.c b/osfmk/kern/exception.c
+index a20a764..3068b22 100644
+--- a/osfmk/kern/exception.c
++++ b/osfmk/kern/exception.c
+@@ -823,6 +823,8 @@ exception_triage(
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ #include <vm/vm_shared_region.h>
+ #include <arm/thread.h>
++#include <ipc/ipc_port.h>
++#include <ipc/ipc_kmsg.h>
+ 
+ /*
+  * SWEET crash report on the console. The phone has no way to get crash
+@@ -996,6 +998,67 @@ sweet_crash_strings(const char *name)
+  */
+ void sweet_sample_task(const char *name, int pid, task_t task);
+ 
++/*
++ * Messages waiting in the queues of a task's receive rights: "SMP name[pid]
++ * ipc: N receive rights, ..." and one "q" line per port that has unread
++ * messages (port name, count, msgh_id of the oldest one, in a port set).
++ * A daemon that sits idle in its run loop while its port holds an unread
++ * message is a delivery problem, not a deadlock.
++ */
++static void
++sweet_sample_ipc(const char *name, int pid, task_t task)
++{
++	struct {
++		uint32_t pname, msgs, id;
++		bool inset;
++	} q[16];
++	int nq = 0;
++	uint32_t nrecv = 0, nqueued = 0;
++	ipc_space_t space = task->itk_space;
++
++	if (space == IS_NULL) {
++		return;
++	}
++	is_read_lock(space);
++	if (is_active(space)) {
++		ipc_entry_table_t table = is_active_table(space);
++		mach_port_index_t tsize = ipc_entry_table_count(table);
++
++		for (mach_port_index_t index = 1; index < tsize; index++) {
++			ipc_entry_t entry = ipc_entry_table_get_nocheck(table, index);
++			ipc_entry_bits_t bits = entry->ie_bits;
++			ipc_port_t port;
++			uint32_t m;
++
++			if ((bits & MACH_PORT_TYPE_RECEIVE) == 0 || entry->ie_object == IO_NULL) {
++				continue;
++			}
++			nrecv++;
++			port = ip_object_to_port(entry->ie_object);
++			ip_mq_lock(port);
++			m = port->ip_messages.imq_msgcount;
++			if (m != 0) {
++				nqueued++;
++				if (nq < 16) {
++					ipc_kmsg_t first = ipc_kmsg_queue_first(&port->ip_messages.imq_messages);
++					q[nq].pname = MACH_PORT_MAKE(index, IE_BITS_GEN(bits));
++					q[nq].msgs = m;
++					q[nq].id = first != IKM_NULL ? (uint32_t)ikm_header(first)->msgh_id : 0;
++					q[nq].inset = ip_in_pset(port);
++					nq++;
++				}
++			}
++			ip_mq_unlock(port);
++		}
++	}
++	is_read_unlock(space);
++	printf("SMP %s[%d] ipc: %u receive rights, %u with unread messages\n", name, pid, nrecv, nqueued);
++	for (int i = 0; i < nq; i++) {
++		printf("SMP %s[%d] q name 0x%x msgs %u first id 0x%x inset %d\n", name, pid,
++		    q[i].pname, q[i].msgs, q[i].id, q[i].inset ? 1 : 0);
++	}
++}
++
+ void
+ sweet_sample_task(const char *name, int pid, task_t task)
+ {
+@@ -1038,6 +1101,7 @@ sweet_sample_task(const char *name, int pid, task_t task)
+ 		printf("%s\n", line);
+ 	}
+ 	task_unlock(task);
++	sweet_sample_ipc(name, pid, task);
+ }
+ 
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+-- 
+2.43.0
+
