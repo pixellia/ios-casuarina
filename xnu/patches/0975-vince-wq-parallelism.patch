@@ -1,0 +1,41 @@
+From 0e3b24968a7341c3b03411911b69b363f8c63c55 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Thu, 5 Nov 2026 09:56:15 +0000
+Subject: [PATCH] 0975 vince: never let workqueue max parallelism be 0
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/pthread/pthread_workqueue.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/bsd/pthread/pthread_workqueue.c b/bsd/pthread/pthread_workqueue.c
+index 0fc2bce..fc32915 100644
+--- a/bsd/pthread/pthread_workqueue.c
++++ b/bsd/pthread/pthread_workqueue.c
+@@ -2063,6 +2063,22 @@ workq_open(struct proc *p, __unused struct workq_open_args *uap,
+ 			wq_max_parallelism[_wq_bucket(qos)] =
+ 			    qos_max_parallelism(qos, QOS_PARALLELISM_COUNT_LOGICAL);
+ 		}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		/*
++		 * vince: with a max parallelism of 0 the admission check of every
++		 * non-overcommit request fails (count > thactive + busy is never
++		 * true), so dispatch_async to a global queue never gets a thread.
++		 * Never let a bucket be 0; say what the scheduler reported.
++		 */
++		printf("vince wq: max_parallelism %u %u %u %u %u %u (num_cpus %u)\n",
++		    wq_max_parallelism[0], wq_max_parallelism[1], wq_max_parallelism[2],
++		    wq_max_parallelism[3], wq_max_parallelism[4], wq_max_parallelism[5], num_cpus);
++		for (int b = 0; b < WORKQ_NUM_QOS_BUCKETS; b++) {
++			if (wq_max_parallelism[b] == 0) {
++				wq_max_parallelism[b] = num_cpus ? num_cpus : 1;
++			}
++		}
++#endif
+ 
+ 		wq_max_cooperative_threads = num_cpus;
+ 
+-- 
+2.43.0
+
