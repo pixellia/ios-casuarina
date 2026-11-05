@@ -4,6 +4,16 @@ set -euo pipefail
 [[ "${MACHINE_CONFIG:-}" == SWEET ]] || exit 0
 [[ -f libkern/crypto/corecrypto_aes.c ]] || exit 1
 bearssl_sha=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
+# bearssl.org is often down (HTTP 502). If the repo carries a pre-staged copy
+# (made by xnu/tools/make-bearssl-vendor.sh from the pinned commit), use it.
+vendor_tgz="${GITHUB_WORKSPACE:-$PWD/../..}/xnu/vendor/sweet_bearssl.tgz"
+if [[ -f "$vendor_tgz" ]]; then
+    [[ -e libkern/crypto/sweet_bearssl ]] && { echo "refusing to overwrite libkern/crypto/sweet_bearssl"; exit 1; }
+    tar xzf "$vendor_tgz" -C libkern/crypto
+    [[ -f libkern/crypto/sweet_bearssl/src/inner.h ]]
+    echo "Staged BearSSL from $vendor_tgz ($bearssl_sha) for SWEET"
+    exit 0
+fi
 bearssl_tmp=$(mktemp -d)
 trap 'rm -rf "$bearssl_tmp"' EXIT
 git init -q "$bearssl_tmp"
