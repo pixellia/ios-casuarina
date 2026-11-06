@@ -1,4 +1,4 @@
-From 610e2081ad8f4cba61fb008dbeb7b58e7c8a2570 Mon Sep 17 00:00:00 2001
+From c246a743aad2725414c8724a1a24cebd5fe30a5b Mon Sep 17 00:00:00 2001
 From: x <a@b>
 Date: Fri, 6 Nov 2026 21:55:23 +0000
 Subject: [PATCH] 0982 vince: Adreno 506 bring-up and VinceGPU service, opt-in
@@ -10,12 +10,12 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
 ---
  bsd/conf/files                |    1 +
- bsd/dev/vince_adreno.c        | 1095 +++++++++++++++++++++++++++++++++
+ bsd/dev/vince_adreno.c        | 1096 +++++++++++++++++++++++++++++++++
  bsd/dev/vince_gpu_firmware.h  |   57 ++
  bsd/dev/vince_input.c         |    2 +
  iokit/Kernel/arm/VinceGPU.cpp |  527 ++++++++++++++++
  iokit/conf/files.arm64        |    1 +
- 6 files changed, 1683 insertions(+)
+ 6 files changed, 1684 insertions(+)
  create mode 100644 bsd/dev/vince_adreno.c
  create mode 100644 bsd/dev/vince_gpu_firmware.h
  create mode 100644 iokit/Kernel/arm/VinceGPU.cpp
@@ -34,10 +34,10 @@ index c8a2b25..5c996d1 100644
  bsd/dev/redwood_apple80211.c	standard
 diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
 new file mode 100644
-index 0000000..693c535
+index 0000000..4087eba
 --- /dev/null
 +++ b/bsd/dev/vince_adreno.c
-@@ -0,0 +1,1095 @@
+@@ -0,0 +1,1096 @@
 +/*
 + * Xiaomi Redmi 5 Plus (vince) Adreno 506 GPU bringup driver.
 + * Adapted from patch 0181-vince-adreno-506-bringup of
@@ -69,6 +69,7 @@ index 0000000..693c535
 +#include <sys/systm.h>
 +#include <kern/clock.h>
 +#include <kern/thread.h>
++#include <kern/sched_prim.h>
 +#include <arm/machine_routines.h>
 +#include <pexpert/pexpert.h>
 +#include <mach/vm_param.h>
