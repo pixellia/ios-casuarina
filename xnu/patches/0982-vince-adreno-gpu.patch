@@ -1,0 +1,1766 @@
+From 610e2081ad8f4cba61fb008dbeb7b58e7c8a2570 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Fri, 6 Nov 2026 21:55:23 +0000
+Subject: [PATCH] 0982 vince: Adreno 506 bring-up and VinceGPU service, opt-in
+ (adreno=N), firmware kept out of the source
+
+Adapted from patch 0181 of arabaci0711-ux/ios-vince. The Qualcomm firmware is not in the tree: vince_gpu_firmware.h is an empty slot filled in the built kernel by vince-gpu-fw.py.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/conf/files                |    1 +
+ bsd/dev/vince_adreno.c        | 1095 +++++++++++++++++++++++++++++++++
+ bsd/dev/vince_gpu_firmware.h  |   57 ++
+ bsd/dev/vince_input.c         |    2 +
+ iokit/Kernel/arm/VinceGPU.cpp |  527 ++++++++++++++++
+ iokit/conf/files.arm64        |    1 +
+ 6 files changed, 1683 insertions(+)
+ create mode 100644 bsd/dev/vince_adreno.c
+ create mode 100644 bsd/dev/vince_gpu_firmware.h
+ create mode 100644 iokit/Kernel/arm/VinceGPU.cpp
+
+diff --git a/bsd/conf/files b/bsd/conf/files
+index c8a2b25..5c996d1 100644
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -109,6 +109,7 @@ bsd/dev/vince_emmc_hw.c		standard
+ bsd/dev/vince_emmc.c			standard
+ bsd/dev/vince_input.c			standard
+ bsd/dev/vince_pmic.c			standard
++bsd/dev/vince_adreno.c			standard
+ bsd/dev/redwood_sta.c		standard
+ bsd/dev/redwood_net.c		standard
+ bsd/dev/redwood_apple80211.c	standard
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+new file mode 100644
+index 0000000..693c535
+--- /dev/null
++++ b/bsd/dev/vince_adreno.c
+@@ -0,0 +1,1095 @@
++/*
++ * Xiaomi Redmi 5 Plus (vince) Adreno 506 GPU bringup driver.
++ * Adapted from patch 0181-vince-adreno-506-bringup of
++ * https://github.com/arabaci0711-ux/ios-vince (register sequences, SCM calls
++ * and memory layout are theirs; proven there on a real Redmi 5 Plus).
++ * Differences here: guarded by VINCE, off unless the boot-arg adreno=N (or
++ * gpu=1) is given, runs on its own kernel thread, and the Qualcomm firmware is
++ * NOT part of the source: vince_gpu_firmware.h only holds an empty slot that
++ * tools/vince-gpu-fw.py fills in the built kernel with files from the phone's
++ * own /vendor/firmware. Without it steps 8 and 10 fail cleanly.
++ *
++ * Steps waking the Adreno 506:
++ *   1  reads   GCC clocks & GDSC status
++ *   2  reads   QFPROM speed bin & chip ID fuses
++ *   3  writes  OXILI_CX_GDSC power on
++ *   4  writes  OXILI_GX_GDSC power on, GMEM clamp off (the GFX LDO block is left as LK set it)
++ *   5  writes  GCC OXILI branch clocks on (AHB, GFX3D, BIMC, AON, TIMER), crypto clocks for TZ
++ *   6  asks    TZ restore_sec_cfg(GPU IOMMU 18), then reads the GPU registers
++ *   7  writes  a5xx_hw_init registers (mainline drm/msm)
++ *   8  loads   PM4/PFP microcode, sets up the ring buffer and starts the micro engine
++ *   9  runs    CP_ME_INIT and the first command (CP_MEM_WRITE to RAM)
++ *  10  loads   the zap shader: TZ secure page table, PIL 13 init/mem_setup/auth, CP_SET_SECURE_MODE 0
++ *  11  runs    a command after leaving secure mode
++ */
++
++#if defined(VINCE)
++
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <kern/clock.h>
++#include <kern/thread.h>
++#include <arm/machine_routines.h>
++#include <pexpert/pexpert.h>
++#include <mach/vm_param.h>
++
++#include "vince_gpu_firmware.h"
++
++extern kern_return_t thread_terminate(thread_t);
++
++extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
++extern vm_offset_t ml_io_map_wcomb(vm_offset_t, vm_size_t);
++extern vm_offset_t kvtophys(vm_offset_t va);
++void vince_adreno_init(void);
++extern void VinceGPUStart(void);
++
++/* ---- Register Bases ---- */
++#define GCC_BASE_PA             0x01800000u
++#define GCC_SIZE                0x60000u
++
++#define QFPROM_BASE_PA          0x00078000u
++#define QFPROM_SIZE             0x8000u
++
++#define GPU_CORE_BASE_PA        0x01c00000u
++#define GPU_CORE_SIZE           0x40000u
++
++/* GCC Registers */
++#define GCC_GFX3D_CMD_RCGR      0x59000u
++#define GCC_GFX3D_CFG_RCGR      0x59004u
++#define GCC_OXILI_GX_GDSCR      0x5901cu
++#define GCC_OXILI_GFX3D_CBCR    0x59020u
++#define GCC_OXILI_GMEM_CBCR     0x59024u
++#define GCC_OXILI_AHB_CBCR      0x59028u
++#define GCC_BIMC_GPU_CBCR       0x59030u
++#define GCC_BIMC_GFX_CBCR       0x59034u
++#define GCC_OXILI_TIMER_CBCR    0x59040u
++#define GCC_OXILI_AON_CBCR      0x59044u
++#define GCC_OXILI_CX_GDSCR      0x5904cu
++#define GCC_CLAMP_IO_CTRL       0x5b00cu
++
++/* GFX LDO & Power Switch Registers (0x0185f000 per Qualcomm msm_gfx_ldo driver) */
++#define GCC_GFX_PWRSWITCH_CTRL      0x5f01cu
++#define GCC_GFX_PWRSWITCH_STATUS    0x5f028u
++
++/* Crypto Engine Clock Registers (Required by TrustZone PAS authentication) */
++#define GCC_CRYPTO_CMD_RCGR     0x16004u
++#define GCC_CRYPTO_CFG_RCGR     0x16008u
++#define GCC_CRYPTO_CBCR         0x1601cu
++#define GCC_CRYPTO_AXI_CBCR     0x16020u
++#define GCC_CRYPTO_AHB_CBCR     0x16024u
++#define GCC_APCS_GPLL_ENA_VOTE  0x45000u
++#define GCC_APCS_CLOCK_BRANCH_ENA_VOTE 0x45004u
++
++/* GDSC bitmasks */
++#define GDSC_PWR_ON             (1u << 31)
++#define GDSC_SW_COLLAPSE        (1u << 0)
++
++/* Adreno 506 Core Hardware Registers */
++#define REG_A5XX_RBBM_INT_0_STATUS        0x00f8u
++#define REG_A5XX_RBBM_SW_RESET_CMD        0x010cu
++#define REG_A5XX_RBBM_AHB_CNTL0           0x024cu
++#define REG_A5XX_RBBM_STATUS              0x13d4u
++#define REG_A5XX_RBBM_STATUS3             0x14c0u
++#define REG_A5XX_VBIF_VERSION             0xc000u
++#define REG_A5XX_VBIF_CLKON               0xc004u
++#define REG_A5XX_VBIF_ROUND_ROBIN_QOS_ARB 0xc124u
++#define REG_A5XX_RBBM_SECVID_TRUST_CNTL   0x3d000u
++
++/* SCM Definitions */
++#define ARGS_ONE_VALUE          0x01ull
++#define ARGS_TWO_VALUES         0x82ull /* (2 | (2 << 6)): 1 val + 1 RW buffer */
++#define ARGS_THREE_VALUES       0x03ull /* 3 plain values */
++#define SCM_INTERRUPTED         1
++#define PAS_GPU                 13
++
++/*
++ * TZ MP service restore_sec_cfg (svc 0x0C cmd 2), in the plain FNID form the shim proved on this phone.
++ * Without it every access to the GPU's register space is a synchronous external abort; mainline makes the same
++ * call for the GPU IOMMU (qcom,iommu-secure-id = 18) whenever OXILI_CX_GDSC comes up (qcom_iommu.c).
++ */
++#define SCM_MP_RESTORE_SEC_CFG  0x02000C02ull
++#define ARGS_TWO_PLAIN          0x02ull
++#define GPU_IOMMU_SEC_ID        18
++
++/*
++ * The rest of the bring-up (steps 7-11) follows mainline a5xx_hw_init and was proven step by step on this phone
++ * through the shim (tools/gpu/a5xx_shim_init.py, 2026-10-26). All SCM calls use the plain FNID form that works here.
++ */
++#define SCM_MP_PTBL_SIZE        0x02000C03ull   /* iommu_secure_ptbl_size(spare) -> x1 = size */
++#define SCM_MP_PTBL_INIT        0x02000C04ull   /* iommu_secure_ptbl_init(addr, size, spare) */
++#define ARGS_PTBL_INIT          0x23ull         /* 3 args, first one a RW buffer */
++#define SCM_PIL_INIT_IMAGE      0x02000201ull
++#define SCM_PIL_MEM_SETUP       0x02000202ull
++#define SCM_PIL_AUTH_AND_RESET  0x02000205ull
++#define SCM_PIL_IS_SUPPORTED    0x02000207ull
++
++/*
++ * GPU memory: RAM below XNU's DRAM (which starts at 0xa0000000), mapped uncached so the GPU sees every CPU write.
++ * The GPU SMMU stays in the bypass TZ leaves after restore_sec_cfg, so GPU addresses are physical addresses.
++ */
++#define GPU_MEM_PA              0x47800000u
++#define GPU_MEM_SIZE            0x00200000u
++#define GPU_PM4_OFF             0x00000000u
++#define GPU_PFP_OFF             0x00010000u
++#define GPU_RB_OFF              0x00020000u     /* 32 KiB ring */
++#define GPU_SCRATCH_OFF         0x00030000u
++#define GPU_ZAP_MDT_OFF         0x00040000u
++#define GPU_SEC_PTBL_OFF        0x00100000u     /* given to TZ, never touched by the CPU afterwards */
++#define GPU_SEC_PTBL_MAX        0x00080000u
++#define ZAP_MEM_PA              0x95000000u     /* mainline's zap@95000000 reserved region */
++#define ZAP_MEM_SIZE            0x2000u
++
++/* a5xx registers, dword offsets (generated a5xx.xml.h) */
++#define A5_RBBM_INTERFACE_HANG_INT_CNTL 0x002f
++#define A5_RBBM_INT_CLEAR_CMD           0x0037
++#define A5_RBBM_INT_0_MASK              0x0038
++#define A5_RBBM_AHB_CNTL0               0x0093
++#define A5_RBBM_AHB_CNTL1               0x0094
++#define A5_RBBM_AHB_CNTL2               0x0095
++#define A5_RBBM_PERFCTR_CNTL            0x0464
++#define A5_RBBM_PERFCTR_RBBM_SEL_0      0x046b
++#define A5_RBBM_PERFCTR_GPU_BUSY_MASKED 0x046f
++#define A5_RBBM_INT_0_STATUS            0x04e1
++#define A5_RBBM_STATUS                  0x04f5
++#define A5_CP_RB_BASE                   0x0800
++#define A5_CP_RB_BASE_HI                0x0801
++#define A5_CP_RB_CNTL                   0x0802
++#define A5_CP_RB_RPTR                   0x0806
++#define A5_CP_RB_WPTR                   0x0807
++#define A5_CP_ROQ_THRESHOLDS_1          0x081f
++#define A5_CP_ROQ_THRESHOLDS_2          0x0820
++#define A5_CP_MEQ_THRESHOLDS            0x0825
++#define A5_CP_MERCIU_SIZE               0x0826
++#define A5_CP_PFP_ME_CNTL               0x0832
++#define A5_CP_CHICKEN_DBG               0x0833
++#define A5_CP_PFP_INSTR_BASE_LO         0x0835
++#define A5_CP_PFP_INSTR_BASE_HI         0x0836
++#define A5_CP_ME_INSTR_BASE_LO          0x0838
++#define A5_CP_ME_INSTR_BASE_HI          0x0839
++#define A5_CP_PROTECT0                  0x0880
++#define A5_CP_PROTECT_CNTL              0x08a0
++#define A5_CP_INTERRUPT_STATUS          0x0b18
++#define A5_CP_HW_FAULT                  0x0b1a
++#define A5_CP_PROTECT_STATUS            0x0b1c
++#define A5_CP_PERFCTR_CP_SEL_0          0x0bb0
++#define A5_RB_DBG_ECO_CNTL              0x0cc4
++#define A5_RB_MODE_CNTL                 0x0cc6
++#define A5_PC_DBG_ECO_CNTL              0x0d00
++#define A5_HLSQ_DBG_ECO_CNTL            0x0e04
++#define A5_VPC_DBG_ECO_CNTL             0x0e60
++#define A5_UCHE_MODE_CNTL               0x0e81
++#define A5_UCHE_WRITE_THRU_BASE_LO      0x0e87
++#define A5_UCHE_WRITE_THRU_BASE_HI      0x0e88
++#define A5_UCHE_TRAP_BASE_LO            0x0e89
++#define A5_UCHE_TRAP_BASE_HI            0x0e8a
++#define A5_UCHE_GMEM_RANGE_MIN_LO       0x0e8b
++#define A5_UCHE_GMEM_RANGE_MIN_HI       0x0e8c
++#define A5_UCHE_GMEM_RANGE_MAX_LO       0x0e8d
++#define A5_UCHE_GMEM_RANGE_MAX_HI       0x0e8e
++#define A5_UCHE_CACHE_WAYS              0x0e96
++#define A5_TPL1_MODE_CNTL               0x0f02
++#define A5_RBBM_SECVID_TRUST_CNTL       0xf400
++#define A5_RBBM_SECVID_TSB_TRUSTED_BASE_LO 0xf800
++#define A5_RBBM_SECVID_TSB_TRUSTED_BASE_HI 0xf801
++#define A5_RBBM_SECVID_TSB_TRUSTED_SIZE 0xf802
++#define A5_RBBM_SECVID_TSB_CNTL         0xf803
++
++/* PM4 type-7 opcodes */
++#define CP_NOP                  16
++#define CP_MEM_WRITE            61
++#define CP_ME_INIT              72
++#define CP_WAIT_MEM_WRITES      18
++#define CP_WAIT_FOR_IDLE        38
++#define CP_INDIRECT_BUFFER_PFE  63
++#define CP_SET_SECURE_MODE      102
++
++#define A5XX_INT_MASK           0x1190037eu     /* a5xx_gpu.c A5XX_INT_MASK */
++
++#define STEPS 11
++
++static uint32_t last_step = 0;
++static uint32_t skip_steps = 0;
++static uint32_t pause_ms = 0;
++static vm_offset_t gcc_va = 0;
++static vm_offset_t qfprom_va = 0;
++static vm_offset_t gpu_va = 0;
++static vm_offset_t zap_va = 0;
++
++static inline uint32_t
++reg_read(vm_offset_t base, uint32_t offset)
++{
++	return *(volatile uint32_t *)(base + offset);
++}
++
++static inline void
++reg_write(vm_offset_t base, uint32_t offset, uint32_t val)
++{
++	*(volatile uint32_t *)(base + offset) = val;
++}
++
++static void
++delay_ms(uint32_t ms)
++{
++	if (ms > 0) {
++		delay(ms * 1000);
++	}
++}
++
++/* SCM ARM SMC primitive (the legacy "x1 = argument info" form; an interrupted call resumes with x0 = 1) */
++static int32_t
++vince_scm_invoke(const char *desc, uint64_t fnid, uint64_t args, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t *out_answer)
++{
++	uint64_t session = 0;
++	int i;
++	int resumes = 0;
++
++	for (i = 0; i < 400; i++) {
++		register uint64_t x0 __asm__("x0") = (i == 0 ? fnid : SCM_INTERRUPTED);
++		register uint64_t x1 __asm__("x1") = args;
++		register uint64_t x2 __asm__("x2") = arg0;
++		register uint64_t x3 __asm__("x3") = arg1;
++		register uint64_t x4 __asm__("x4") = arg2;
++		register uint64_t x5 __asm__("x5") = 0;
++		register uint64_t x6 __asm__("x6") = session;
++		register uint64_t x7 __asm__("x7") = 0;
++
++		__asm__ volatile(
++			"smc #0\n"
++			: "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3),
++			  "+r"(x4), "+r"(x5), "+r"(x6), "+r"(x7)
++			:
++			: "memory", "cc"
++		);
++
++		if ((int32_t)x0 == SCM_INTERRUPTED) {
++			session = x6 ? x6 : 1;  /* as the shim's pas.c, which Pronto's PIL calls proved */
++			resumes++;
++			delay(100);
++			continue;
++		}
++
++		if (out_answer) {
++			*out_answer = x1;
++		}
++		if (resumes > 0) {
++			printf("adreno: %s resumed %d times, ret=%d ans=%#llx\n",
++			    desc, resumes, (int32_t)x0, x1);
++		}
++		return (int32_t)x0;
++	}
++
++	printf("adreno: %s SMC yield loop timed out after 400 iterations\n", desc);
++	return -1;
++}
++
++
++/* Step 1: Read GCC Clocks */
++static bool
++step1_read_clocks(void)
++{
++	uint32_t cx, gx, ahb, gfx, cmd, cfg, gpll;
++
++	printf("adreno: step 1: reading GCC clock controller\n");
++	if (!gcc_va) {
++		gcc_va = ml_io_map(GCC_BASE_PA, GCC_SIZE);
++		if (!gcc_va) {
++			printf("adreno: step 1: FAILED to map GCC\n");
++			return false;
++		}
++	}
++	cx = reg_read(gcc_va, GCC_OXILI_CX_GDSCR);
++	gx = reg_read(gcc_va, GCC_OXILI_GX_GDSCR);
++	ahb = reg_read(gcc_va, GCC_OXILI_AHB_CBCR);
++	gfx = reg_read(gcc_va, GCC_OXILI_GFX3D_CBCR);
++	cmd = reg_read(gcc_va, GCC_GFX3D_CMD_RCGR);
++	cfg = reg_read(gcc_va, GCC_GFX3D_CFG_RCGR);
++	gpll = reg_read(gcc_va, GCC_APCS_GPLL_ENA_VOTE);
++	printf("adreno: step 1: CX_GDSC=%#x GX_GDSC=%#x AHB_CLK=%#x GFX_CLK=%#x (CMD=%#x CFG=%#x GPLL_VOTE=%#x)\n",
++	    cx, gx, ahb, gfx, cmd, cfg, gpll);
++	return true;
++}
++
++/* Step 2: Read QFPROM Fuses */
++static bool
++step2_read_fuses(void)
++{
++	uint32_t f0, f1;
++
++	printf("adreno: step 2: reading QFPROM speed bin fuses\n");
++	if (!qfprom_va) {
++		qfprom_va = ml_io_map(QFPROM_BASE_PA, QFPROM_SIZE);
++		if (!qfprom_va) {
++			printf("adreno: step 2: FAILED to map QFPROM\n");
++			return false;
++		}
++	}
++	f0 = reg_read(qfprom_va, 0x00a0);
++	f1 = reg_read(qfprom_va, 0x00a4);
++	printf("adreno: step 2: fuses at 0xa0: %#x %#x\n", f0, f1);
++	return true;
++}
++
++/* Step 3: Power OXILI_CX_GDSC */
++static bool
++step3_power_cx(void)
++{
++	uint32_t val;
++	int i;
++
++	printf("adreno: step 3: powering OXILI_CX_GDSC\n");
++	val = reg_read(gcc_va, GCC_OXILI_CX_GDSCR);
++	if (val & GDSC_PWR_ON) {
++		printf("adreno: step 3: OXILI_CX_GDSC already on (%#x)\n", val);
++		return true;
++	}
++	reg_write(gcc_va, GCC_OXILI_CX_GDSCR, val & ~GDSC_SW_COLLAPSE);
++	for (i = 0; i < 1000; i++) {
++		val = reg_read(gcc_va, GCC_OXILI_CX_GDSCR);
++		if (val & GDSC_PWR_ON) {
++			printf("adreno: step 3: OXILI_CX_GDSC powered on (%#x)\n", val);
++			return true;
++		}
++		delay(10);
++	}
++	printf("adreno: step 3: OXILI_CX_GDSC timed out (%#x)\n", val);
++	return false;
++}
++
++/* Step 4: Power OXILI_GX_GDSC, Configure GFX LDO & Deassert All Clamps */
++static bool
++step4_power_gx(void)
++{
++	uint32_t val, pwr_ctl, pwr_stat;
++	int i;
++
++	printf("adreno: step 4: powering OXILI_GX_GDSC & deasserting IO clamps\n");
++
++	/* 1. Deassert GMEM / GX domain clamp */
++	reg_write(gcc_va, GCC_CLAMP_IO_CTRL, reg_read(gcc_va, GCC_CLAMP_IO_CTRL) & ~1u);
++
++	/* 2. Power on OXILI_GX_GDSC */
++	val = reg_read(gcc_va, GCC_OXILI_GX_GDSCR);
++	if (!(val & GDSC_PWR_ON)) {
++		reg_write(gcc_va, GCC_OXILI_GX_GDSCR, val & ~GDSC_SW_COLLAPSE);
++		for (i = 0; i < 1000; i++) {
++			val = reg_read(gcc_va, GCC_OXILI_GX_GDSCR);
++			if (val & GDSC_PWR_ON) {
++				break;
++			}
++			delay(10);
++		}
++	}
++	if (!(val & GDSC_PWR_ON)) {
++		printf("adreno: step 4: OXILI_GX_GDSC timed out (%#x)\n", val);
++		return false;
++	}
++
++	/* 3. Retain GMEM memory and peripheral logic across power switches (gdsc_force_mem_on) */
++	reg_write(gcc_va, GCC_GFX3D_CMD_RCGR, reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) | (3u << 13));
++
++	/*
++	 * The GFX LDO block (0x0185f000) is left as LK set it: mainline never touches it and the GPU registers
++	 * read fine there with PWRSWITCH_CTRL still 0x80000038 (ground truth, 2026-10-26).
++	 */
++	pwr_ctl = reg_read(gcc_va, GCC_GFX_PWRSWITCH_CTRL);
++	pwr_stat = reg_read(gcc_va, GCC_GFX_PWRSWITCH_STATUS);
++
++	printf("adreno: step 4: OXILI_GX_GDSC on (%#x), PWRSWITCH_CTRL=%#x, PWRSWITCH_STATUS=%#x\n",
++	    val, pwr_ctl, pwr_stat);
++
++	delay(50);
++	return true;
++}
++
++/* Step 5: Turn on GCC Branch Clocks */
++static bool
++step5_enable_clocks(void)
++{
++	int i;
++	uint32_t gfx_cbcr, ahb_cbcr;
++
++	printf("adreno: step 5: enabling GCC OXILI, BIMC and Crypto branch clocks\n");
++
++	/* 1. Ensure GPLL0 active vote */
++	reg_write(gcc_va, GCC_APCS_GPLL_ENA_VOTE, reg_read(gcc_va, GCC_APCS_GPLL_ENA_VOTE) | 1u);
++
++	/* 2. Configure GFX3D Core RCG: 100 MHz via GPLL0_DIV2 (0x507) */
++	reg_write(gcc_va, GCC_GFX3D_CFG_RCGR, 0x507u);
++	reg_write(gcc_va, GCC_GFX3D_CMD_RCGR, reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) | (1u << 0));
++	for (i = 0; i < 1000; i++) {
++		if (!(reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) & (1u << 0))) {
++			break;
++		}
++		delay(2);
++	}
++	/* Fallback to XO (0x1) if 100MHz didn't update */
++	if (reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) & (1u << 0)) {
++		printf("adreno: step 5: GFX3D GPLL0_DIV2 update timed out, trying XO (0x1)\n");
++		reg_write(gcc_va, GCC_GFX3D_CFG_RCGR, 0x1u);
++		reg_write(gcc_va, GCC_GFX3D_CMD_RCGR, reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) | (1u << 0));
++		for (i = 0; i < 1000; i++) {
++			if (!(reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) & (1u << 0))) {
++				break;
++			}
++			delay(2);
++		}
++	}
++	/* Enable Root */
++	reg_write(gcc_va, GCC_GFX3D_CMD_RCGR, reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) | (1u << 1));
++
++	/* 3. Turn on OXILI and BIMC GPU branch clocks */
++	reg_write(gcc_va, GCC_OXILI_AHB_CBCR, reg_read(gcc_va, GCC_OXILI_AHB_CBCR) | 1u);
++	reg_write(gcc_va, GCC_OXILI_GFX3D_CBCR, reg_read(gcc_va, GCC_OXILI_GFX3D_CBCR) | 1u);
++	reg_write(gcc_va, GCC_BIMC_GPU_CBCR, reg_read(gcc_va, GCC_BIMC_GPU_CBCR) | 1u);
++	reg_write(gcc_va, GCC_BIMC_GFX_CBCR, reg_read(gcc_va, GCC_BIMC_GFX_CBCR) | 1u);
++	reg_write(gcc_va, GCC_OXILI_AON_CBCR, reg_read(gcc_va, GCC_OXILI_AON_CBCR) | 1u);
++	reg_write(gcc_va, GCC_OXILI_TIMER_CBCR, reg_read(gcc_va, GCC_OXILI_TIMER_CBCR) | 1u);
++
++	/* Wait for branch clocks CLK_OFF (bit 31) to clear */
++	for (i = 0; i < 1000; i++) {
++		if (!(reg_read(gcc_va, GCC_OXILI_GFX3D_CBCR) & (1u << 31))) {
++			break;
++		}
++		delay(2);
++	}
++	for (i = 0; i < 1000; i++) {
++		if (!(reg_read(gcc_va, GCC_OXILI_AHB_CBCR) & (1u << 31))) {
++			break;
++		}
++		delay(2);
++	}
++
++	/* 4. Configure Crypto Engine to 80 MHz (GPLL0 / 10 -> 0x113) */
++	reg_write(gcc_va, GCC_CRYPTO_CFG_RCGR, 0x113u);
++	reg_write(gcc_va, GCC_CRYPTO_CMD_RCGR, reg_read(gcc_va, GCC_CRYPTO_CMD_RCGR) | (1u << 0));
++	for (i = 0; i < 500; i++) {
++		if (!(reg_read(gcc_va, GCC_CRYPTO_CMD_RCGR) & (1u << 0))) {
++			break;
++		}
++		delay(5);
++	}
++	reg_write(gcc_va, GCC_CRYPTO_CMD_RCGR, reg_read(gcc_va, GCC_CRYPTO_CMD_RCGR) | (1u << 1));
++
++	/* 5. Turn on Crypto Branch clocks and vote */
++	reg_write(gcc_va, GCC_APCS_CLOCK_BRANCH_ENA_VOTE, reg_read(gcc_va, GCC_APCS_CLOCK_BRANCH_ENA_VOTE) | 0x7u);
++	reg_write(gcc_va, GCC_CRYPTO_CBCR, reg_read(gcc_va, GCC_CRYPTO_CBCR) | 1u);
++	reg_write(gcc_va, GCC_CRYPTO_AXI_CBCR, reg_read(gcc_va, GCC_CRYPTO_AXI_CBCR) | 1u);
++	reg_write(gcc_va, GCC_CRYPTO_AHB_CBCR, reg_read(gcc_va, GCC_CRYPTO_AHB_CBCR) | 1u);
++
++	gfx_cbcr = reg_read(gcc_va, GCC_OXILI_GFX3D_CBCR);
++	ahb_cbcr = reg_read(gcc_va, GCC_OXILI_AHB_CBCR);
++
++	printf("adreno: step 5: clocks active (AHB=%#x [OFF=%u] GFX=%#x [OFF=%u] CMD=%#x CFG=%#x BIMC_GPU=%#x BIMC_GFX=%#x)\n",
++	    ahb_cbcr, (ahb_cbcr >> 31) & 1u,
++	    gfx_cbcr, (gfx_cbcr >> 31) & 1u,
++	    reg_read(gcc_va, GCC_GFX3D_CMD_RCGR),
++	    reg_read(gcc_va, GCC_GFX3D_CFG_RCGR),
++	    reg_read(gcc_va, GCC_BIMC_GPU_CBCR),
++	    reg_read(gcc_va, GCC_BIMC_GFX_CBCR));
++
++	delay(50);
++	return true;
++}
++
++/* Step 6: Read Adreno 506 Core Hardware Registers (Pre-ZAP direct verification) */
++static bool
++step6_read_core(void)
++{
++	uint32_t ahb_cntl, status, status3, vbif_ver, int0;
++	uint32_t gfx_cbcr = reg_read(gcc_va, GCC_OXILI_GFX3D_CBCR);
++
++	uint64_t ans = 0;
++	int32_t sret;
++
++	printf("adreno: step 6: probing Adreno 506 hardware registers (GFX_CBCR=%#x, CLK_OFF=%u)\n",
++	    gfx_cbcr, (gfx_cbcr >> 31) & 1u);
++
++	/* TZ must restore the GPU's secure configuration after CX comes up, or the first access aborts */
++	sret = vince_scm_invoke("RESTORE_SEC_CFG(GPU IOMMU)", SCM_MP_RESTORE_SEC_CFG, ARGS_TWO_PLAIN,
++	    GPU_IOMMU_SEC_ID, 0, 0, &ans);
++	printf("adreno: step 6: restore_sec_cfg(%d, 0) -> ret=%d ans=%#llx\n", GPU_IOMMU_SEC_ID, sret, ans);
++	if (sret != 0) {
++		printf("adreno: step 6: TZ refused restore_sec_cfg, NOT touching GPU registers\n");
++		return false;
++	}
++
++	if (!gpu_va) {
++		gpu_va = ml_io_map(GPU_CORE_BASE_PA, GPU_CORE_SIZE);
++		if (!gpu_va) {
++			printf("adreno: step 6: FAILED to map GPU core\n");
++			return false;
++		}
++	}
++
++	/* read-only probe; the setup writes are step 7, and SECVID_TRUST_CNTL is left to the zap (step 10) */
++	ahb_cntl = reg_read(gpu_va, REG_A5XX_RBBM_AHB_CNTL0);
++	status   = reg_read(gpu_va, REG_A5XX_RBBM_STATUS);
++	status3  = reg_read(gpu_va, REG_A5XX_RBBM_STATUS3);
++	int0     = reg_read(gpu_va, REG_A5XX_RBBM_INT_0_STATUS);
++	vbif_ver = reg_read(gpu_va, REG_A5XX_VBIF_VERSION);
++
++	printf("adreno: step 6: RBBM_AHB_CNTL0=%#x RBBM_STATUS=%#x STATUS3=%#x INT0=%#x VBIF_VER=%#x\n",
++	    ahb_cntl, status, status3, int0, vbif_ver);
++
++	printf("adreno: step 6: GPU register space readable (VBIF_VERSION should be 0x200d0000)\n");
++	return true;
++}
++
++/* ---- GPU memory, register and ring helpers (steps 7-11) ---- */
++
++static vm_offset_t gmem_va = 0;
++static uint32_t rb_wptr = 0;
++
++static inline void
++gw(uint32_t reg, uint32_t val)
++{
++	reg_write(gpu_va, reg * 4u, val);
++}
++
++static inline uint32_t
++gr(uint32_t reg)
++{
++	return reg_read(gpu_va, reg * 4u);
++}
++
++static inline void
++gmem_w32(uint32_t off, uint32_t val)
++{
++	*(volatile uint32_t *)(gmem_va + off) = val;
++}
++
++static inline uint32_t
++gmem_r32(uint32_t off)
++{
++	return *(volatile uint32_t *)(gmem_va + off);
++}
++
++/* word copy: the destination is Device memory, which wants aligned accesses */
++static void
++gmem_copy(uint32_t off, const uint8_t *src, uint32_t len)
++{
++	uint32_t i, v;
++
++	for (i = 0; i < len; i += 4) {
++		v = src[i];
++		if (i + 1 < len) v |= (uint32_t)src[i + 1] << 8;
++		if (i + 2 < len) v |= (uint32_t)src[i + 2] << 16;
++		if (i + 3 < len) v |= (uint32_t)src[i + 3] << 24;
++		gmem_w32(off + i, v);
++	}
++}
++
++static uint32_t
++pm4_parity(uint32_t v)
++{
++	uint32_t x = v ^ (v >> 4) ^ (v >> 8) ^ (v >> 12) ^ (v >> 16) ^ (v >> 20) ^ (v >> 24) ^ (v >> 28);
++
++	return (0x9669u >> (x & 0xfu)) & 1u;
++}
++
++static uint32_t
++pkt7(uint32_t op, uint32_t cnt)
++{
++	return 0x70000000u | cnt | (pm4_parity(cnt) << 15) | ((op & 0x7fu) << 16) | (pm4_parity(op) << 23);
++}
++
++static void
++rb_emit(uint32_t v)
++{
++	gmem_w32(GPU_RB_OFF + rb_wptr * 4u, v);
++	rb_wptr = (rb_wptr + 1) % 8192;
++}
++
++/* publish WPTR and wait for the CP to consume everything (a5xx_flush + adreno_idle) */
++static bool
++rb_flush(const char *what)
++{
++	int i;
++
++	__asm__ volatile("dsb sy" ::: "memory");
++	gw(A5_CP_RB_WPTR, rb_wptr);
++	for (i = 0; i < 200; i++) {
++		if (gr(A5_CP_RB_RPTR) == rb_wptr) {
++			return true;
++		}
++		delay(1000);
++	}
++	printf("adreno: %s NOT consumed: RPTR=%u WPTR=%u RBBM_STATUS=%#x INT0=%#x CP_HW_FAULT=%#x CP_INT=%#x PROT=%#x\n",
++	    what, gr(A5_CP_RB_RPTR), rb_wptr, gr(A5_RBBM_STATUS), gr(A5_RBBM_INT_0_STATUS), gr(A5_CP_HW_FAULT),
++	    gr(A5_CP_INTERRUPT_STATUS), gr(A5_CP_PROTECT_STATUS));
++	return false;
++}
++
++static uint32_t
++protect_rw(uint32_t reg, uint32_t len)
++{
++	uint32_t lg = 0;
++
++	while ((1u << (lg + 1)) <= len) {
++		lg++;
++	}
++	return (1u << 30) | (1u << 29) | ((lg & 0x1fu) << 24) | ((reg << 2) & 0xfffffu);
++}
++
++/* Step 7: a5xx_hw_init register setup (HWCG left at its reset state) */
++static bool
++step7_hw_init(void)
++{
++	static const uint32_t prot[][2] = {
++		{ 0x04, 4 }, { 0x08, 8 }, { 0x10, 16 }, { 0x20, 32 }, { 0x40, 64 }, { 0x80, 64 },
++		{ A5_RBBM_SECVID_TSB_TRUSTED_BASE_LO, 16 }, { A5_RBBM_SECVID_TRUST_CNTL, 2 },
++		{ 0x800, 64 }, { 0x840, 8 }, { 0x880, 32 }, { 0xaa0, 1 }, { 0xcc0, 1 }, { 0xcf0, 2 },
++		{ 0xe68, 8 }, { 0xe70, 16 }, { 0xe80, 16 }, { 0x10000, 0x8000 },
++	};
++	static const uint32_t addr_mode[] = {
++		0x860, 0xbc1, 0xc81, 0xcc5, 0xd01, 0xe05, 0xe41, 0xe61, 0xe80, 0xec1, 0xf01, 0xf810,
++	};
++	const uint32_t hbb = 14 - 13;   /* qcom,highest-bank-bit = <14> */
++	uint32_t i;
++
++	printf("adreno: step 7: a5xx_hw_init registers\n");
++	gw(A5_RBBM_INT_CLEAR_CMD, 0xffffffffu);
++	gw(REG_A5XX_VBIF_ROUND_ROBIN_QOS_ARB / 4u, 3);
++	gw(A5_RBBM_PERFCTR_GPU_BUSY_MASKED, 0xffffffffu);
++	gw(A5_RBBM_AHB_CNTL0, 1);
++	gw(A5_RBBM_INTERFACE_HANG_INT_CNTL, (1u << 30) | 0xffffu);
++	gw(A5_RBBM_PERFCTR_CNTL, 1);
++	gw(A5_CP_PERFCTR_CP_SEL_0, 0);
++	gw(A5_RBBM_PERFCTR_RBBM_SEL_0, 6);
++	gw(A5_UCHE_CACHE_WAYS, 2);
++	gw(A5_UCHE_TRAP_BASE_LO, 0xffff0000u);          /* uche_trap_base 0x0001ffffffff0000 */
++	gw(A5_UCHE_TRAP_BASE_HI, 0x0001ffffu);
++	gw(A5_UCHE_WRITE_THRU_BASE_LO, 0xffff0000u);
++	gw(A5_UCHE_WRITE_THRU_BASE_HI, 0x0001ffffu);
++	gw(A5_UCHE_GMEM_RANGE_MIN_LO, 0x00100000u);
++	gw(A5_UCHE_GMEM_RANGE_MIN_HI, 0);
++	gw(A5_UCHE_GMEM_RANGE_MAX_LO, 0x00100000u + (128u + 8u) * 1024u - 1u);
++	gw(A5_UCHE_GMEM_RANGE_MAX_HI, 0);
++	gw(A5_CP_MEQ_THRESHOLDS, 0x20);
++	gw(A5_CP_MERCIU_SIZE, 0x400);
++	gw(A5_CP_ROQ_THRESHOLDS_2, 0x40000030u);
++	gw(A5_CP_ROQ_THRESHOLDS_1, 0x20100d0au);
++	gw(A5_PC_DBG_ECO_CNTL, (0x100u << 11) | (0x100u << 22) | (1u << 8));   /* + TWO_PASS_USE_WFI */
++	gw(A5_RB_DBG_ECO_CNTL, gr(A5_RB_DBG_ECO_CNTL) | (1u << 9));
++	gw(A5_UCHE_MODE_CNTL, 1u << 29);
++	gw(A5_CP_CHICKEN_DBG, 0x02000000u);
++	gw(A5_RBBM_AHB_CNTL1, 0xa6ffffffu);
++	gw(A5_RBBM_AHB_CNTL2, 0x3f);
++	gw(A5_TPL1_MODE_CNTL, hbb << 7);
++	gw(A5_RB_MODE_CNTL, hbb << 1);
++	gw(A5_VPC_DBG_ECO_CNTL, gr(A5_VPC_DBG_ECO_CNTL) | (1u << 10));
++	gw(A5_CP_PROTECT_CNTL, 7);
++	for (i = 0; i < sizeof(prot) / sizeof(prot[0]); i++) {
++		gw(A5_CP_PROTECT0 + i, protect_rw(prot[i][0], prot[i][1]));
++	}
++	gw(A5_RBBM_SECVID_TSB_CNTL, 0);
++	gw(A5_RBBM_SECVID_TSB_TRUSTED_BASE_LO, 0);
++	gw(A5_RBBM_SECVID_TSB_TRUSTED_BASE_HI, 0);
++	gw(A5_RBBM_SECVID_TSB_TRUSTED_SIZE, 0);
++	for (i = 0; i < sizeof(addr_mode) / sizeof(addr_mode[0]); i++) {
++		gw(addr_mode[i], 1);
++	}
++	gw(A5_VPC_DBG_ECO_CNTL, gr(A5_VPC_DBG_ECO_CNTL) | (1u << 23));         /* LMLOADKILL_DISABLE */
++	gw(A5_HLSQ_DBG_ECO_CNTL, gr(A5_HLSQ_DBG_ECO_CNTL) & ~(1u << 18));
++	return true;
++}
++
++/* Step 8: microcode (PM4/PFP minus their first dword) and ring buffer, then start the micro engine */
++static bool
++step8_ucode_ring(void)
++{
++	uint32_t i;
++
++	if (!vince_fw_ok()) {
++		printf("adreno: step 8: no firmware in the kernel (run vince-gpu-fw.py on the built kernel)\n");
++		return false;
++	}
++	printf("adreno: step 8: loading PM4 (%u B) / PFP (%u B) and the ring at PA %#x\n",
++	    a530_pm4_fw_size, a530_pfp_fw_size, GPU_MEM_PA);
++	if (!gmem_va) {
++		gmem_va = ml_io_map(GPU_MEM_PA, GPU_MEM_SIZE);
++		if (!gmem_va) {
++			printf("adreno: step 8: FAILED to map GPU memory\n");
++			return false;
++		}
++	}
++	gmem_copy(GPU_PM4_OFF, &a530_pm4_fw[4], a530_pm4_fw_size - 4);
++	gmem_copy(GPU_PFP_OFF, &a530_pfp_fw[4], a530_pfp_fw_size - 4);
++	if (gmem_r32(GPU_PM4_OFF) != *(const uint32_t *)&a530_pm4_fw[4] ||
++	    gmem_r32(GPU_PFP_OFF) != *(const uint32_t *)&a530_pfp_fw[4]) {
++		printf("adreno: step 8: microcode readback mismatch\n");
++		return false;
++	}
++	for (i = 0; i < 0x1000u; i += 4) {
++		gmem_w32(GPU_RB_OFF + i, 0);
++	}
++	gmem_w32(GPU_SCRATCH_OFF, 0xdeaddeadu);
++	gmem_w32(GPU_SCRATCH_OFF + 4, 0xdeaddeadu);
++	rb_wptr = 0;
++
++	gw(A5_CP_ME_INSTR_BASE_LO, GPU_MEM_PA + GPU_PM4_OFF);
++	gw(A5_CP_ME_INSTR_BASE_HI, 0);
++	gw(A5_CP_PFP_INSTR_BASE_LO, GPU_MEM_PA + GPU_PFP_OFF);
++	gw(A5_CP_PFP_INSTR_BASE_HI, 0);
++	gw(A5_CP_RB_BASE, GPU_MEM_PA + GPU_RB_OFF);
++	gw(A5_CP_RB_BASE_HI, 0);
++	gw(A5_CP_RB_CNTL, 12u | (2u << 8) | 0x08000000u);   /* BUFSZ log2(32K/8), BLKSZ log2(32/8), NO_UPDATE */
++	gw(A5_CP_RB_WPTR, 0);
++	gw(A5_RBBM_INT_0_MASK, A5XX_INT_MASK);
++	__asm__ volatile("dsb sy" ::: "memory");
++	gw(A5_CP_PFP_ME_CNTL, 0);                            /* clear ME_HALT */
++	delay(10000);
++	printf("adreno: step 8: ME running, RBBM_STATUS=%#x INT0=%#x CP_HW_FAULT=%#x\n",
++	    gr(A5_RBBM_STATUS), gr(A5_RBBM_INT_0_STATUS), gr(A5_CP_HW_FAULT));
++	return true;
++}
++
++/* Step 9: CP_ME_INIT (a5xx_me_init, a506 workaround word 0xb) and the first command, a CP_MEM_WRITE */
++static bool
++step9_me_init(void)
++{
++	uint32_t got;
++
++	printf("adreno: step 9: CP_ME_INIT\n");
++	rb_emit(pkt7(CP_ME_INIT, 8));
++	rb_emit(0x2f);
++	rb_emit(0x3);
++	rb_emit(0x20000000u);
++	rb_emit(0);
++	rb_emit(0);
++	rb_emit(0xb);
++	rb_emit(0);
++	rb_emit(0);
++	if (!rb_flush("CP_ME_INIT")) {
++		return false;
++	}
++	rb_emit(pkt7(CP_MEM_WRITE, 3));
++	rb_emit(GPU_MEM_PA + GPU_SCRATCH_OFF);
++	rb_emit(0);
++	rb_emit(0xc0ffee01u);
++	if (!rb_flush("CP_MEM_WRITE")) {
++		return false;
++	}
++	delay(1000);
++	got = gmem_r32(GPU_SCRATCH_OFF);
++	printf("adreno: step 9: CP_MEM_WRITE -> %#x (%s), RPTR=%u\n", got,
++	    got == 0xc0ffee01u ? "the GPU executed its first command" : "NOT written", gr(A5_CP_RB_RPTR));
++	return got == 0xc0ffee01u;
++}
++
++/* Step 10: TZ secure page table for the GPU IOMMU, zap shader through PIL 13, then CP_SET_SECURE_MODE 0 */
++static bool
++step10_zap(void)
++{
++	uint64_t ans = 0;
++	int32_t ret;
++
++	if (!vince_fw_ok()) {
++		printf("adreno: step 10: no firmware in the kernel\n");
++		return false;
++	}
++	printf("adreno: step 10: zap shader\n");
++	ret = vince_scm_invoke("IOMMU_SECURE_PTBL_SIZE", SCM_MP_PTBL_SIZE, ARGS_ONE_VALUE, 0, 0, 0, &ans);
++	printf("adreno: step 10: secure ptbl size ret=%d size=%#llx\n", ret, ans);
++	if (ret != 0 || ans == 0 || ans > GPU_SEC_PTBL_MAX) {
++		return false;
++	}
++	ret = vince_scm_invoke("IOMMU_SECURE_PTBL_INIT", SCM_MP_PTBL_INIT, ARGS_PTBL_INIT,
++	    GPU_MEM_PA + GPU_SEC_PTBL_OFF, ans, 0, NULL);
++	printf("adreno: step 10: secure ptbl init at %#x ret=%d\n", GPU_MEM_PA + GPU_SEC_PTBL_OFF, ret);
++	if (ret != 0) {
++		return false;
++	}
++
++	ret = vince_scm_invoke("PIL_IS_SUPPORTED(13)", SCM_PIL_IS_SUPPORTED, ARGS_ONE_VALUE, PAS_GPU, 0, 0, &ans);
++	if (ret != 0 || ans != 1) {
++		printf("adreno: step 10: PIL 13 not supported (ret=%d ans=%#llx)\n", ret, ans);
++		return false;
++	}
++	gmem_copy(GPU_ZAP_MDT_OFF, a506_zap_mdt, a506_zap_mdt_size);
++	ret = vince_scm_invoke("PIL_INIT_IMAGE(13)", SCM_PIL_INIT_IMAGE, ARGS_TWO_VALUES, PAS_GPU,
++	    GPU_MEM_PA + GPU_ZAP_MDT_OFF, 0, NULL);
++	printf("adreno: step 10: init_image ret=%d\n", ret);
++	if (ret != 0) {
++		return false;
++	}
++	ret = vince_scm_invoke("PIL_MEM_SETUP(13)", SCM_PIL_MEM_SETUP, ARGS_THREE_VALUES, PAS_GPU,
++	    ZAP_MEM_PA, ZAP_MEM_SIZE, NULL);
++	printf("adreno: step 10: mem_setup(%#x, %#x) ret=%d\n", ZAP_MEM_PA, ZAP_MEM_SIZE, ret);
++	if (ret != 0) {
++		return false;
++	}
++	if (!zap_va) {
++		zap_va = ml_io_map(ZAP_MEM_PA, ZAP_MEM_SIZE);
++		if (!zap_va) {
++			printf("adreno: step 10: FAILED to map the zap region\n");
++			return false;
++		}
++	}
++	{
++		/* the one PT_LOAD segment (paddr 0x5000, relocatable) goes to the start of the region */
++		const uint8_t *src = a506_zap_b02;
++		uint32_t i, v;
++
++		for (i = 0; i < a506_zap_b02_size; i += 4) {
++			v = src[i];
++			if (i + 1 < a506_zap_b02_size) v |= (uint32_t)src[i + 1] << 8;
++			if (i + 2 < a506_zap_b02_size) v |= (uint32_t)src[i + 2] << 16;
++			if (i + 3 < a506_zap_b02_size) v |= (uint32_t)src[i + 3] << 24;
++			*(volatile uint32_t *)(zap_va + i) = v;
++		}
++		__asm__ volatile("dsb sy" ::: "memory");
++	}
++	ret = vince_scm_invoke("PIL_AUTH_AND_RESET(13)", SCM_PIL_AUTH_AND_RESET, ARGS_ONE_VALUE, PAS_GPU, 0, 0, &ans);
++	printf("adreno: step 10: auth_and_reset ret=%d ans=%#llx\n", ret, ans);
++	if (ret != 0) {
++		return false;
++	}
++
++	rb_emit(pkt7(CP_SET_SECURE_MODE, 1));
++	rb_emit(0);
++	if (!rb_flush("CP_SET_SECURE_MODE")) {
++		return false;
++	}
++	/* RBBM_SECVID_TRUST_CNTL is a secure register once the zap is in: a CPU read of it is an external abort */
++	printf("adreno: step 10: zap loaded, GPU out of secure mode\n");
++	return true;
++}
++
++/* Step 11: a command after leaving secure mode, and the final status */
++
++/* ---- VinceGPU Service Interface ---- */
++
++static bool gpu_ready = false;
++static uint32_t gpu_fence = 0;
++
++bool
++vince_gpu_ready(void)
++{
++	return gpu_ready;
++}
++
++uint32_t
++vince_gpu_last(void)
++{
++	return gpu_fence;
++}
++
++bool
++vince_gpu_done(uint32_t fence)
++{
++	uint32_t cur = gmem_r32(GPU_SCRATCH_OFF + 0x20);
++	return (int32_t)(cur - fence) >= 0;
++}
++
++bool
++vince_gpu_parameter(uint32_t which, uint64_t *value)
++{
++	switch (which) {
++	case 0x01: /* MSM_PARAM_GPU_ID */
++		*value = 506;
++		return true;
++	case 0x02: /* MSM_PARAM_GMEM_SIZE */
++		*value = 136 * 1024;
++		return true;
++	case 0x03: /* MSM_PARAM_CHIP_ID */
++		*value = 0x05000600ull;
++		return true;
++	case 0x04: /* MSM_PARAM_MAX_FREQ */
++		*value = 650000000ull;
++		return true;
++	case 0x05: /* MSM_PARAM_TIMESTAMP */
++		*value = mach_absolute_time();
++		return true;
++	case 0x06: /* MSM_PARAM_GMEM_BASE */
++		*value = 0x100000;
++		return true;
++	case 0x07: /* MSM_PARAM_PRIORITIES */
++		*value = 1;
++		return true;
++	case 0x08: /* PP_PGTABLE */
++	case 0x09: /* FAULTS */
++	case 0x0a: /* SUSPENDS */
++		*value = 0;
++		return true;
++	case 0x0c: /* MSM_PARAM_VA_START */
++		*value = 0;
++		return true;
++	case 0x0d: /* MSM_PARAM_VA_SIZE */
++		*value = 0x100000000ull;
++		return true;
++	default:
++		return false;
++	}
++}
++
++uint32_t
++vince_gpu_submit(const uint64_t *addresses, const uint32_t *words, uint32_t count)
++{
++	uint32_t needed = count * 4 + 8;
++	uint32_t i;
++
++	if (!gpu_ready || count == 0) {
++		return 0;
++	}
++
++	for (i = 0; i < 20000; i++) {
++		uint32_t rptr = gr(A5_CP_RB_RPTR);
++		uint32_t room = (rptr + 8192 - rb_wptr - 1) % 8192;
++		if (room >= needed) {
++			break;
++		}
++		delay(100);
++	}
++	if (i == 20000) {
++		printf("adreno: ringbuffer full! RPTR=%u WPTR=%u\n", gr(A5_CP_RB_RPTR), rb_wptr);
++		return 0;
++	}
++
++	rb_emit(pkt7(CP_WAIT_FOR_IDLE, 0));
++
++	for (i = 0; i < count; i++) {
++		rb_emit(pkt7(CP_INDIRECT_BUFFER_PFE, 3));
++		rb_emit((uint32_t)addresses[i]);
++		rb_emit(0);
++		rb_emit(words[i]);
++	}
++
++	gpu_fence++;
++	if (gpu_fence == 0) {
++		gpu_fence = 1;
++	}
++	rb_emit(pkt7(CP_WAIT_MEM_WRITES, 0));
++	rb_emit(pkt7(CP_MEM_WRITE, 3));
++	rb_emit(GPU_MEM_PA + GPU_SCRATCH_OFF + 0x20);
++	rb_emit(0);
++	rb_emit(gpu_fence);
++
++	__asm__ volatile("dsb sy" ::: "memory");
++	gw(A5_CP_RB_WPTR, rb_wptr);
++
++	return gpu_fence;
++}
++
++static bool
++step11_post_zap(void)
++{
++	uint32_t got;
++
++	rb_emit(pkt7(CP_MEM_WRITE, 3));
++	rb_emit(GPU_MEM_PA + GPU_SCRATCH_OFF + 4);
++	rb_emit(0);
++	rb_emit(0xc0ffee02u);
++	if (!rb_flush("post-zap CP_MEM_WRITE")) {
++		return false;
++	}
++	delay(1000);
++	got = gmem_r32(GPU_SCRATCH_OFF + 4);
++	printf("adreno: step 11: post-zap CP_MEM_WRITE -> %#x; RBBM_STATUS=%#x INT0=%#x RPTR=%u\n",
++	    got, gr(A5_RBBM_STATUS), gr(A5_RBBM_INT_0_STATUS), gr(A5_CP_RB_RPTR));
++	if (got == 0xc0ffee02u) {
++		printf("adreno: step 11: Adreno 506 command processor is up (ring at PA %#x)\n", GPU_MEM_PA + GPU_RB_OFF);
++		gpu_ready = true;
++		VinceGPUStart();
++	}
++	return got == 0xc0ffee02u;
++}
++
++typedef bool (*step_fn)(void);
++static step_fn steps[11] = {
++	step1_read_clocks,
++	step2_read_fuses,
++	step3_power_cx,
++	step4_power_gx,
++	step5_enable_clocks,
++	step6_read_core,
++	step7_hw_init,
++	step8_ucode_ring,
++	step9_me_init,
++	step10_zap,
++	step11_post_zap,
++};
++
++static int adreno_chan;
++
++static void
++adreno_run(void)
++{
++	uint32_t arg = 0;
++	uint32_t i;
++
++	if (!PE_parse_boot_argn("adreno", &last_step, sizeof(last_step))) {
++		if (PE_parse_boot_argn("gpu", &arg, sizeof(arg)) && arg) {
++			last_step = 11;
++		} else {
++			return; /* adreno/gpu boot-arg not requested */
++		}
++	}
++	if (last_step == 0) {
++		return;
++	}
++	if (last_step > 11) {
++		last_step = 11;
++	}
++	PE_parse_boot_argn("adreno_skip", &skip_steps, sizeof(skip_steps));
++	PE_parse_boot_argn("adreno_pause", &pause_ms, sizeof(pause_ms));
++
++	printf("==================================================\n");
++	printf("VINCE ADRENO 506: starting steps 1 to %u (skip mask %#x, pause %u ms)\n",
++	    last_step, skip_steps, pause_ms);
++	printf("==================================================\n");
++
++	for (i = 1; i <= last_step; i++) {
++		if (skip_steps & (1u << i)) {
++			printf("VINCE ADRENO: step %u SKIPPED by boot-arg\n", i);
++			continue;
++		}
++		if (!steps[i - 1]()) {
++			printf("VINCE ADRENO: step %u FAILED!\n", i);
++			break;
++		}
++		printf("VINCE ADRENO: step %u SUCCESS\n", i);
++		delay_ms(pause_ms);
++	}
++	printf("==================================================\n");
++	printf("VINCE ADRENO 506: bringup sequence finished\n");
++	printf("==================================================\n");
++}
++
++static void
++adreno_main(void *param, wait_result_t wr)
++{
++	uint64_t deadline;
++
++	clock_interval_to_deadline(3000, NSEC_PER_MSEC, &deadline);
++	(void)assert_wait_deadline(&adreno_chan, THREAD_UNINT, deadline);
++	thread_block(THREAD_CONTINUE_NULL);
++	adreno_run();
++	(void)thread_terminate(current_thread());
++	thread_block(THREAD_CONTINUE_NULL);
++}
++
++/*
++ * Started from vince_input_start(). Costs nothing unless adreno=N (or gpu=1)
++ * is in the boot-args. The sequence runs on its own thread, a few seconds
++ * after boot, so IOKit is up when VinceGPUStart() registers the service and a
++ * hang here cannot hold the touch screen or the keys.
++ */
++void
++vince_adreno_init(void)
++{
++	uint32_t arg = 0;
++	thread_t thread;
++
++	if (!PE_parse_boot_argn("adreno", &arg, sizeof(arg)) &&
++	    !(PE_parse_boot_argn("gpu", &arg, sizeof(arg)) && arg)) {
++		return;
++	}
++	if (kernel_thread_start(adreno_main, NULL, &thread) == KERN_SUCCESS) {
++		thread_deallocate(thread);
++	} else {
++		printf("VINCE ADRENO: thread not started\n");
++	}
++}
++
++#endif /* VINCE */
+diff --git a/bsd/dev/vince_gpu_firmware.h b/bsd/dev/vince_gpu_firmware.h
+new file mode 100644
+index 0000000..f7b7675
+--- /dev/null
++++ b/bsd/dev/vince_gpu_firmware.h
+@@ -0,0 +1,57 @@
++/*
++ * Slot for the Adreno 506 firmware (Qualcomm, signed). The firmware is NOT in
++ * this repository. tools/vince-gpu-fw.py copies four files from the phone's own
++ * Android /vendor/firmware into this slot inside the built kernel:
++ *   a530_pm4.fw, a530_pfp.fw, a506_zap.mdt, a506_zap.b02
++ * It finds the slot by the marker below. An unfilled slot has filled == 0 and
++ * the GPU steps that need firmware (8 and 10) stop with a message.
++ */
++#ifndef _VINCE_GPU_FIRMWARE_H_
++#define _VINCE_GPU_FIRMWARE_H_
++
++#include <stdint.h>
++
++#define VGFW_MDT_MAX    8192u
++#define VGFW_B02_MAX    8192u
++#define VGFW_PM4_MAX    24576u
++#define VGFW_PFP_MAX    24576u
++
++struct vince_gpu_fw_slot {
++	char     marker[16];            /* "VINCE-GPU-FW-v1" + NUL, never referenced by code */
++	uint32_t filled;                /* 0x46574742 ("FWGB") once vince-gpu-fw.py ran */
++	uint32_t mdt_size;
++	uint32_t b02_size;
++	uint32_t pm4_size;
++	uint32_t pfp_size;
++	uint32_t pad[3];
++	uint8_t  mdt[VGFW_MDT_MAX];
++	uint8_t  b02[VGFW_B02_MAX];
++	uint8_t  pm4[VGFW_PM4_MAX];
++	uint8_t  pfp[VGFW_PFP_MAX];
++};
++
++/* Writable and non-const on purpose: the compiler must not fold the contents. */
++static struct vince_gpu_fw_slot vince_gpu_fw __attribute__((used, aligned(4096))) = {
++	.marker = "VINCE-GPU-FW-v1",
++};
++
++#define a506_zap_mdt        (vince_gpu_fw.mdt)
++#define a506_zap_mdt_size   (vince_gpu_fw.mdt_size)
++#define a506_zap_b02        (vince_gpu_fw.b02)
++#define a506_zap_b02_size   (vince_gpu_fw.b02_size)
++#define a530_pm4_fw         (vince_gpu_fw.pm4)
++#define a530_pm4_fw_size    (vince_gpu_fw.pm4_size)
++#define a530_pfp_fw         (vince_gpu_fw.pfp)
++#define a530_pfp_fw_size    (vince_gpu_fw.pfp_size)
++
++static inline bool
++vince_fw_ok(void)
++{
++	return vince_gpu_fw.filled == 0x46574742u &&
++	       vince_gpu_fw.mdt_size > 0 && vince_gpu_fw.mdt_size <= VGFW_MDT_MAX &&
++	       vince_gpu_fw.b02_size > 0 && vince_gpu_fw.b02_size <= VGFW_B02_MAX &&
++	       vince_gpu_fw.pm4_size > 4 && vince_gpu_fw.pm4_size <= VGFW_PM4_MAX &&
++	       vince_gpu_fw.pfp_size > 4 && vince_gpu_fw.pfp_size <= VGFW_PFP_MAX;
++}
++
++#endif
+diff --git a/bsd/dev/vince_input.c b/bsd/dev/vince_input.c
+index 2a37995..fdc3ee5 100644
+--- a/bsd/dev/vince_input.c
++++ b/bsd/dev/vince_input.c
+@@ -38,6 +38,7 @@ extern kern_return_t thread_terminate(thread_t);
+ extern void sweet_hid_key(int key, int down);
+ extern void sweet_hid_touch(int finger, int down, int x, int y);
+ void vince_input_start(void);
++extern void vince_adreno_init(void);   /* vince_adreno.c: boot-arg adreno=N, off by default */
+ 
+ #define SPMI_CORE_PA    0x0200f000u
+ #define SPMI_CNFG_PA    0x0200a000u
+@@ -513,6 +514,7 @@ vince_input_start(void)
+ 		return;
+ 	}
+ 	input_started = true;
++	vince_adreno_init();
+ 	(void)PE_parse_boot_argn("vincekeys", &keys, sizeof(keys));
+ 	(void)PE_parse_boot_argn("vincetouch", &touch, sizeof(touch));
+ 	tlmm = ml_io_map(TLMM_PA, TLMM_SIZE);
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+new file mode 100644
+index 0000000..4ffa2db
+--- /dev/null
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -0,0 +1,527 @@
++/*
++ * VinceGPU: Adreno 506 GPU IOKit service for Vince (Xiaomi Redmi 5 Plus).
++ * Taken from patch 0181-vince-adreno-506-bringup of
++ * https://github.com/arabaci0711-ux/ios-vince (guarded by VINCE here).
++ *
++ * Exposes Linux msm DRM requests (compatible with freedreno / hakios-metal)
++ * to userland via IOUserClient.
++ */
++#if defined(VINCE)
++
++
++#include <IOKit/IOLib.h>
++#include <IOKit/IOLocks.h>
++#include <IOKit/IOKitKeys.h>
++#include <IOKit/IOPlatformExpert.h>
++#include <IOKit/IOService.h>
++#include <IOKit/IOUserClient.h>
++#include <IOKit/IOBufferMemoryDescriptor.h>
++#include <kern/clock.h>
++#include <mach/mach_time.h>
++#include <mach/vm_param.h>
++#include <sys/systm.h>
++
++extern "C" {
++uint64_t kvtophys(vm_offset_t va);
++bool vince_gpu_ready(void);
++bool vince_gpu_parameter(uint32_t which, uint64_t *value);
++uint32_t vince_gpu_submit(const uint64_t *addresses, const uint32_t *words, uint32_t count);
++bool vince_gpu_done(uint32_t fence);
++uint32_t vince_gpu_last(void);
++void VinceGPUStart(void);
++void VinceGPUStop(void);
++}
++
++enum {
++	kDrmGemClose            = 0x09,
++	kMsmGetParam            = 0x40,
++	kMsmSetParam            = 0x41,
++	kMsmGemNew              = 0x42,
++	kMsmGemInfo             = 0x43,
++	kMsmGemCpuPrep          = 0x44,
++	kMsmGemCpuFini          = 0x45,
++	kMsmGemSubmit           = 0x46,
++	kMsmWaitFence           = 0x47,
++	kMsmGemMadvise          = 0x48,
++	kMsmSubmitQueueNew      = 0x4a,
++	kMsmSubmitQueueClose    = 0x4b,
++	kMsmSubmitQueueQuery    = 0x4c,
++};
++
++struct msm_timespec {
++	int64_t seconds, nanoseconds;
++};
++struct msm_param {
++	uint32_t pipe, param;
++	uint64_t value;
++	uint32_t len, pad;
++};
++struct msm_gem_new {
++	uint64_t size;
++	uint32_t flags, handle;
++};
++struct msm_gem_info {
++	uint32_t handle, info;
++	uint64_t value;
++	uint32_t len, pad;
++};
++struct msm_gem_cpu_prep {
++	uint32_t handle, op;
++	struct msm_timespec timeout;
++};
++struct msm_gem_submit_cmd {
++	uint32_t type, submit_idx, submit_offset, size, pad, nr_relocs;
++	uint64_t relocs;
++};
++struct msm_gem_submit_bo {
++	uint32_t flags, handle;
++	uint64_t presumed;
++};
++struct msm_gem_submit {
++	uint32_t flags, fence, nr_bos, nr_cmds;
++	uint64_t bos, cmds;
++	int32_t fence_fd;
++	uint32_t queueid;
++	uint64_t in_syncobjs, out_syncobjs;
++	uint32_t nr_in_syncobjs, nr_out_syncobjs, syncobj_stride, pad;
++};
++struct msm_wait_fence {
++	uint32_t fence, flags;
++	struct msm_timespec timeout;
++	uint32_t queueid;
++};
++struct msm_gem_madvise {
++	uint32_t handle, madv, retained;
++};
++struct msm_submitqueue {
++	uint32_t flags, prio, id;
++};
++struct msm_submitqueue_query {
++	uint64_t data;
++	uint32_t id, param, len, pad;
++};
++struct drm_gem_close {
++	uint32_t handle, pad;
++};
++
++#define GPU_BUFFERS 1024
++#define GPU_BUFFER_MAX (256ull << 20)
++
++struct gpu_buffer {
++	IOBufferMemoryDescriptor *memory;
++	uint8_t *kernel;
++	uint64_t address;
++	uint64_t size;
++	uint32_t flags;
++};
++
++static IOLock *gGPULock = NULL;
++
++static int64_t
++millisecondsUntil(const struct msm_timespec *when)
++{
++	uint64_t now_ns;
++	int64_t target_ns, left_ns;
++
++	absolutetime_to_nanoseconds(mach_continuous_time(), &now_ns);
++	target_ns = when->seconds * NSEC_PER_SEC + when->nanoseconds;
++	left_ns = target_ns - (int64_t)now_ns;
++	if (left_ns <= 0) {
++		return 0;
++	}
++	return left_ns / NSEC_PER_MSEC;
++}
++
++static bool
++gpuWait(uint32_t fence, int64_t patienceMs)
++{
++	uint64_t start = mach_absolute_time();
++	while (!vince_gpu_done(fence)) {
++		uint64_t elapsedNs, elapsedMs;
++		absolutetime_to_nanoseconds(mach_absolute_time() - start, &elapsedNs);
++		elapsedMs = elapsedNs / NSEC_PER_MSEC;
++		if ((int64_t)elapsedMs >= patienceMs) {
++			return vince_gpu_done(fence);
++		}
++		IOSleep(1);
++	}
++	return true;
++}
++
++/* ---------------- VinceGPU Service ---------------- */
++
++class VinceGPU : public IOService
++{
++	OSDeclareDefaultStructors(VinceGPU);
++
++public:
++	virtual bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
++};
++
++OSDefineMetaClassAndStructors(VinceGPU, IOService);
++
++bool
++VinceGPU::start(IOService *provider)
++{
++	if (!IOService::start(provider)) {
++		return false;
++	}
++	setProperty(kIOUserClientClassKey, "VinceGPUUserClient");
++	setName("VinceGPU");
++	registerService();
++	IOLog("VinceGPU: service started and registered\n");
++	return true;
++}
++
++void
++VinceGPUStart(void)
++{
++	IOService *provider = IOService::getPlatform();
++	VinceGPU *gpu;
++
++	if (gGPULock == NULL) {
++		gGPULock = IOLockAlloc();
++	}
++	gpu = OSTypeAlloc(VinceGPU);
++	if (gpu == NULL || provider == NULL || !gpu->init() || !gpu->attach(provider)) {
++		OSSafeReleaseNULL(gpu);
++		IOLog("VinceGPU: cannot create service\n");
++		return;
++	}
++	if (!gpu->start(provider)) {
++		gpu->detach(provider);
++		IOLog("VinceGPU: service failed to start\n");
++	}
++	gpu->release();
++}
++
++void
++VinceGPUStop(void)
++{
++}
++
++/* ---------------- VinceGPUUserClient ---------------- */
++
++class VinceGPUUserClient : public IOUserClient
++{
++	OSDeclareDefaultStructors(VinceGPUUserClient);
++
++public:
++	virtual bool initWithTask(task_t owningTask, void *securityID, UInt32 type) APPLE_KEXT_OVERRIDE;
++	virtual bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
++	virtual IOReturn clientClose(void) APPLE_KEXT_OVERRIDE;
++	virtual IOReturn clientMemoryForType(UInt32 type, IOOptionBits *options, IOMemoryDescriptor **memory) APPLE_KEXT_OVERRIDE;
++	virtual IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments *args,
++	    IOExternalMethodDispatch *dispatch, OSObject *target, void *reference) APPLE_KEXT_OVERRIDE;
++
++private:
++	struct gpu_buffer *buffer(uint32_t handle);
++	IOReturn gemNew(struct msm_gem_new *request);
++	IOReturn gemInfo(struct msm_gem_info *request);
++	IOReturn submit(struct msm_gem_submit *request);
++	void freeBuffer(struct gpu_buffer *b);
++
++	task_t fTask;
++	struct gpu_buffer *fBuffers;
++	uint32_t fNextBuffer;
++	uint32_t fNextQueue;
++};
++
++OSDefineMetaClassAndStructors(VinceGPUUserClient, IOUserClient);
++
++bool
++VinceGPUUserClient::initWithTask(task_t owningTask, void *securityID, UInt32 type)
++{
++	if (!IOUserClient::initWithTask(owningTask, securityID, type)) {
++		return false;
++	}
++	fTask = owningTask;
++	fNextBuffer = 0;
++	fNextQueue = 0;
++	fBuffers = (struct gpu_buffer *)IOMallocZero(sizeof(struct gpu_buffer) * GPU_BUFFERS);
++	return fBuffers != NULL;
++}
++
++bool
++VinceGPUUserClient::start(IOService *provider)
++{
++	return IOUserClient::start(provider);
++}
++
++void
++VinceGPUUserClient::freeBuffer(struct gpu_buffer *b)
++{
++	if (b->memory != NULL) {
++		b->memory->release();
++		b->memory = NULL;
++	}
++	bzero(b, sizeof(*b));
++}
++
++IOReturn
++VinceGPUUserClient::clientClose(void)
++{
++	if (fBuffers != NULL) {
++		IOLockLock(gGPULock);
++		for (uint32_t i = 0; i < GPU_BUFFERS; i++) {
++			freeBuffer(&fBuffers[i]);
++		}
++		IOFree(fBuffers, sizeof(struct gpu_buffer) * GPU_BUFFERS);
++		fBuffers = NULL;
++		IOLockUnlock(gGPULock);
++	}
++	terminate();
++	return kIOReturnSuccess;
++}
++
++struct gpu_buffer *
++VinceGPUUserClient::buffer(uint32_t handle)
++{
++	if (handle == 0 || handle > GPU_BUFFERS || fBuffers == NULL) {
++		return NULL;
++	}
++	return fBuffers[handle - 1].memory != NULL ? &fBuffers[handle - 1] : NULL;
++}
++
++IOReturn
++VinceGPUUserClient::gemNew(struct msm_gem_new *request)
++{
++	uint64_t size = round_page_64(request->size);
++	struct gpu_buffer *b = NULL;
++	IOBufferMemoryDescriptor *memory;
++
++	if (size == 0 || size > GPU_BUFFER_MAX || fBuffers == NULL) {
++		return kIOReturnBadArgument;
++	}
++
++	IOLockLock(gGPULock);
++	for (uint32_t n = 0; n < GPU_BUFFERS; n++) {
++		uint32_t h = (fNextBuffer + n) % GPU_BUFFERS;
++		if (fBuffers[h].memory == NULL) {
++			b = &fBuffers[h];
++			fNextBuffer = h + 1;
++			request->handle = h + 1;
++			break;
++		}
++	}
++	IOLockUnlock(gGPULock);
++
++	if (b == NULL) {
++		return kIOReturnNoMemory;
++	}
++
++	memory = IOBufferMemoryDescriptor::inTaskWithOptions(
++	    kernel_task,
++	    kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache,
++	    (vm_size_t)size,
++	    PAGE_SIZE);
++
++	if (memory == NULL) {
++		return kIOReturnNoMemory;
++	}
++
++	IOLockLock(gGPULock);
++	bzero(b, sizeof(*b));
++	b->memory = memory;
++	b->kernel = (uint8_t *)memory->getBytesNoCopy();
++	b->address = memory->getPhysicalAddress();
++	if (b->address == 0) {
++		b->address = kvtophys((vm_offset_t)b->kernel);
++	}
++	b->size = size;
++	b->flags = request->flags;
++	IOLockUnlock(gGPULock);
++
++	return kIOReturnSuccess;
++}
++
++IOReturn
++VinceGPUUserClient::gemInfo(struct msm_gem_info *request)
++{
++	struct gpu_buffer *b;
++	IOReturn ret = kIOReturnSuccess;
++
++	IOLockLock(gGPULock);
++	b = buffer(request->handle);
++	if (b == NULL) {
++		ret = kIOReturnNotFound;
++	} else if (request->info == 1 /* kInfoGetIova */) {
++		request->value = b->address;
++	} else if (request->info == 0 /* kInfoGetOffset */) {
++		request->value = 0;
++	} else {
++		ret = kIOReturnBadArgument;
++	}
++	IOLockUnlock(gGPULock);
++	return ret;
++}
++
++IOReturn
++VinceGPUUserClient::submit(struct msm_gem_submit *request)
++{
++	struct msm_gem_submit_bo *bos = NULL;
++	struct msm_gem_submit_cmd *cmds = NULL;
++	uint64_t addresses[16];
++	uint32_t words[16];
++	uint32_t count = 0;
++	IOReturn ret = kIOReturnSuccess;
++
++	if (request->nr_bos == 0 || request->nr_cmds == 0 || request->nr_cmds > 16) {
++		return kIOReturnBadArgument;
++	}
++
++	bos = (struct msm_gem_submit_bo *)IOMalloc(request->nr_bos * sizeof(*bos));
++	cmds = (struct msm_gem_submit_cmd *)IOMalloc(request->nr_cmds * sizeof(*cmds));
++	if (bos == NULL || cmds == NULL) {
++		ret = kIOReturnNoMemory;
++		goto out;
++	}
++
++	if (copyin((user_addr_t)request->bos, bos, request->nr_bos * sizeof(*bos)) != 0 ||
++	    copyin((user_addr_t)request->cmds, cmds, request->nr_cmds * sizeof(*cmds)) != 0) {
++		ret = kIOReturnVMError;
++		goto out;
++	}
++
++	IOLockLock(gGPULock);
++	for (uint32_t i = 0; i < request->nr_cmds; i++) {
++		struct gpu_buffer *b = cmds[i].submit_idx < request->nr_bos ? buffer(bos[cmds[i].submit_idx].handle) : NULL;
++		if (b == NULL || (cmds[i].size & 3) || (cmds[i].submit_offset & 3) ||
++		    (uint64_t)cmds[i].submit_offset + cmds[i].size > b->size) {
++			IOLockUnlock(gGPULock);
++			ret = kIOReturnBadArgument;
++			goto out;
++		}
++		addresses[count] = b->address + cmds[i].submit_offset;
++		words[count++] = cmds[i].size / 4;
++	}
++
++	request->fence = vince_gpu_submit(addresses, words, count);
++	IOLockUnlock(gGPULock);
++
++	if (request->fence == 0) {
++		ret = kIOReturnTimeout;
++	}
++
++out:
++	if (bos != NULL) {
++		IOFree(bos, request->nr_bos * sizeof(*bos));
++	}
++	if (cmds != NULL) {
++		IOFree(cmds, request->nr_cmds * sizeof(*cmds));
++	}
++	return ret;
++}
++
++IOReturn
++VinceGPUUserClient::clientMemoryForType(UInt32 type, IOOptionBits *options, IOMemoryDescriptor **memory)
++{
++	struct gpu_buffer *b;
++	IOReturn ret = kIOReturnBadArgument;
++
++	IOLockLock(gGPULock);
++	b = buffer(type);
++	if (b != NULL && b->memory != NULL) {
++		b->memory->retain();
++		*memory = b->memory;
++		*options = 0;
++		ret = kIOReturnSuccess;
++	}
++	IOLockUnlock(gGPULock);
++	return ret;
++}
++
++IOReturn
++VinceGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments *args,
++    IOExternalMethodDispatch *dispatch, OSObject *target, void *reference)
++{
++	union {
++		struct msm_param param;
++		struct msm_gem_new gemNew;
++		struct msm_gem_info gemInfo;
++		struct msm_gem_cpu_prep cpuPrep;
++		struct msm_gem_submit submit;
++		struct msm_wait_fence waitFence;
++		struct msm_gem_madvise madvise;
++		struct msm_submitqueue queue;
++		struct msm_submitqueue_query query;
++		struct drm_gem_close close;
++	} r;
++	size_t size = args->structureInputSize;
++	struct gpu_buffer *b;
++	IOReturn ret = kIOReturnSuccess;
++	uint64_t zero = 0, patience;
++
++	if (args->structureInput == NULL || size > sizeof(r) || fBuffers == NULL) {
++		return kIOReturnBadArgument;
++	}
++	if (!vince_gpu_ready()) {
++		return kIOReturnNotReady;
++	}
++
++	bzero(&r, sizeof(r));
++	memcpy(&r, args->structureInput, size);
++
++	switch (selector) {
++	case kMsmGetParam:
++		ret = vince_gpu_parameter(r.param.param, &r.param.value) ? kIOReturnSuccess : kIOReturnBadArgument;
++		break;
++	case kMsmSetParam:
++	case kMsmGemCpuFini:
++	case kMsmSubmitQueueClose:
++		break;
++	case kMsmGemNew:
++		ret = gemNew(&r.gemNew);
++		break;
++	case kMsmGemInfo:
++		ret = gemInfo(&r.gemInfo);
++		break;
++	case kMsmGemCpuPrep:
++		patience = millisecondsUntil(&r.cpuPrep.timeout);
++		if (!gpuWait(vince_gpu_last(), patience)) {
++			ret = kIOReturnBusy;
++		}
++		break;
++	case kMsmGemSubmit:
++		ret = submit(&r.submit);
++		break;
++	case kMsmWaitFence:
++		patience = millisecondsUntil(&r.waitFence.timeout);
++		if (!gpuWait(r.waitFence.fence, patience)) {
++			ret = kIOReturnTimeout;
++		}
++		break;
++	case kMsmGemMadvise:
++		r.madvise.retained = 1;
++		break;
++	case kMsmSubmitQueueNew:
++		r.queue.id = ++fNextQueue;
++		break;
++	case kMsmSubmitQueueQuery:
++		if (r.query.data != 0 && r.query.len >= sizeof(zero)) {
++			copyout(&zero, (user_addr_t)r.query.data, sizeof(zero));
++		}
++		break;
++	case kDrmGemClose:
++		IOLockLock(gGPULock);
++		b = buffer(r.close.handle);
++		if (b == NULL) {
++			ret = kIOReturnBadArgument;
++		} else {
++			freeBuffer(b);
++		}
++		IOLockUnlock(gGPULock);
++		break;
++	default:
++		ret = kIOReturnUnsupported;
++		break;
++	}
++
++	if (args->structureOutput != NULL && args->structureOutputSize >= size) {
++		memcpy(args->structureOutput, &r, size);
++		args->structureOutputSize = (uint32_t)size;
++	}
++	return ret;
++}
++
++#endif /* VINCE */
+diff --git a/iokit/conf/files.arm64 b/iokit/conf/files.arm64
+index c92beb0..aea2795 100644
+--- a/iokit/conf/files.arm64
++++ b/iokit/conf/files.arm64
+@@ -26,6 +26,7 @@ iokit/Kernel/arm/TopazAdreno.cpp                                 optional iokitc
+ iokit/Kernel/arm/TopazAdrenoFw.cpp                               optional iokitcpp
+ iokit/Kernel/arm/RedwoodGPU.cpp                                  optional iokitcpp
+ iokit/Kernel/arm/SweetBattery.cpp                                optional iokitcpp
++iokit/Kernel/arm/VinceGPU.cpp                                    optional iokitcpp
+ iokit/Kernel/arm/hid/SweetHID.cpp                                optional iokitcpp
+ iokit/Kernel/arm/hid/IOHIDEvent.cpp                              optional iokitcpp
+ iokit/Kernel/arm/hid/IOHIDEventServiceQueue.cpp                  optional iokitcpp
+-- 
+2.43.0
+
