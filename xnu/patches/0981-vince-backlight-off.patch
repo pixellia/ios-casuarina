@@ -1,0 +1,160 @@
+From f2708cd2fc7dedcd5ab489ad021d1675d703a5ae Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Fri, 6 Nov 2026 08:08:06 +0000
+Subject: [PATCH] 0981 vince: display off switches the PMI8950 WLED backlight
+ off (vinceblank=0 disables)
+
+---
+ bsd/dev/vince_pmic.c                  | 95 +++++++++++++++++++++++++++
+ iokit/Kernel/arm/SweetFramebuffer.cpp | 10 +++
+ 2 files changed, 105 insertions(+)
+
+diff --git a/bsd/dev/vince_pmic.c b/bsd/dev/vince_pmic.c
+index 841d029..db5ffb8 100644
+--- a/bsd/dev/vince_pmic.c
++++ b/bsd/dev/vince_pmic.c
+@@ -11,6 +11,7 @@
+ #include <sys/systm.h>
+ #include <kern/clock.h>
+ #include <kern/locks.h>
++#include <pexpert/pexpert.h>
+ #include <machine/machine_routines.h>
+ 
+ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
+@@ -110,4 +111,98 @@ vince_pmic_read(unsigned ppid, unsigned reg, uint8_t *val)
+ 	lck_mtx_unlock(pmic_lock);
+ 	return r;
+ }
++
++/*
++ * Patch 0981: the backlight switch. The panel's backlight on vince is the PMI8950 WLED (peripheral 0xd8 of SID 3,
++ * from the stock device tree: qcom,qpnp-wled, reg 0xd800). Like the Linux driver (module enable = control base + 0x46,
++ * bit 7) display off clears that bit and display on sets it; the brightness registers stay as LK set them. This is
++ * the only PMIC write in this file, one bit of one register, through the apps' own channel (EE 0, ARB_CHNLS).
++ * It is armed only if the peripheral is owned by EE 0 and the enable bit is set when we start (so the register
++ * is what we think it is); boot-arg vinceblank=0 turns it off.
++ */
++#define WLED_PPID       0x3d8u
++#define WLED_MOD_EN     0x46u
++#define ARB_CHNLS       0x02400000u
++#define WDATA0          0x10u
++#define OP_EXT_WRITEL   0u
++
++static vm_offset_t wled_chan;
++static bool wled_armed;
++
++static int
++pmic_write_byte(vm_offset_t chan, unsigned reg, uint8_t val)
++{
++	*(volatile uint32_t *)(chan + WDATA0) = val;
++	*(volatile uint32_t *)(chan + CMD) = OP_EXT_WRITEL << 27 | (reg & 0xFFu) << 4;
++	for (int i = 0; i < 10000; i++) {
++		uint32_t st = *(volatile uint32_t *)(chan + STATUS);
++
++		if (st & 0xE) {
++			return -(int)st;
++		}
++		if (st & 1) {
++			return 0;
++		}
++		delay(1);
++	}
++	return -100;
++}
++
++void
++vince_wled_init(void)
++{
++	uint8_t v = 0;
++	uint32_t blank = 1;
++	unsigned apid;
++
++	(void)PE_parse_boot_argn("vinceblank", &blank, sizeof(blank));
++	if (!blank || wled_armed || vince_pmic_init() != 0) {
++		return;
++	}
++	for (apid = 0; apid < 256; apid++) {
++		uint32_t m = *(volatile uint32_t *)(pmic_core + 0x800 + 4 * apid);
++
++		if (m && ((m >> 8) & 0xFFF) == WLED_PPID) {
++			break;
++		}
++	}
++	if (apid == 256) {
++		printf("VINCE WLED: peripheral not found, backlight stays on\n");
++		return;
++	}
++	uint32_t owner = *(volatile uint32_t *)(pmic_cnfg + 0x700 + 4 * apid) & 7;
++	if (vince_pmic_read(WLED_PPID, WLED_MOD_EN, &v) != 0 || owner != 0 || !(v & 0x80)) {
++		printf("VINCE WLED: apid %u owner EE %u MOD_EN %#x: not armed, backlight stays on\n", apid, owner, v);
++		return;
++	}
++	wled_chan = ml_io_map(ARB_CHNLS + 0x8000u * apid, 0x1000);
++	if (!wled_chan) {
++		printf("VINCE WLED: cannot map the channel, backlight stays on\n");
++		return;
++	}
++	wled_armed = true;
++	printf("VINCE WLED: armed (apid %u, MOD_EN %#x)\n", apid, v);
++}
++
++void
++vince_wled_set(bool on)
++{
++	uint8_t v = 0;
++	int r;
++
++	if (!wled_armed || !pmic_lock) {
++		return;
++	}
++	if (vince_pmic_read(WLED_PPID, WLED_MOD_EN, &v) != 0) {
++		printf("VINCE WLED: read failed\n");
++		return;
++	}
++	if (((v & 0x80) != 0) == on) {
++		return;
++	}
++	lck_mtx_lock(pmic_lock);
++	r = pmic_write_byte(wled_chan, WLED_MOD_EN, on ? (v | 0x80) : (v & ~0x80));
++	lck_mtx_unlock(pmic_lock);
++	printf("VINCE WLED: backlight %s%s\n", on ? "on" : "off", r ? " (write failed)" : "");
++}
+ #endif /* VINCE */
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 766c41a..4918d1b 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -44,6 +44,10 @@ extern "C" void topaz_audio_init(void);
+ extern "C" void sweet_amfi_service_init(void);
+ extern "C" void sweet_busy_init(void);              /* iokit/Kernel/arm/SweetBusy.cpp (boot-arg sweetbusy=N) */             /* iokit/Kernel/arm/TopazModem.cpp (boot-arg modem=1) */
+ extern "C" int sweet_console_copy_dirty(void *dst);
++#if defined(VINCE)
++extern "C" void vince_wled_init(void);          /* bsd/dev/vince_pmic.c */
++extern "C" void vince_wled_set(bool on);
++#endif
+ extern "C" void topaz_adreno_init(void);           /* iokit/Kernel/arm/TopazAdreno.cpp (boot-arg gpu=1) */
+ bool topaz_surface_drawn(SweetSurface *surface, uint64_t milliseconds);   /* RedwoodGPU.cpp */
+ 
+@@ -539,6 +543,7 @@ AppleCLCD::startVince(void)
+ 		return false;
+ 	}
+ 	setProperty("IOMFBBrightnessLevel", (unsigned long long)(200u << 16), 32);     /* as on sweet */
++	vince_wled_init();                    /* backlight switch for display off (patch 0981) */
+ 	uint32_t accelOn = 1;
+ 	(void)PE_parse_boot_argn("sweetaccel", &accelOn, sizeof(accelOn));
+ 	IOAcceleratorES *accel = accelOn ? OSTypeAlloc(IOAcceleratorES) : NULL;
+@@ -1759,6 +1764,11 @@ IOMobileFramebufferUserClient::externalMethod(uint32_t selector, IOExternalMetho
+ 			}
+ 			uint32_t level = fFB->fBlLevel;
+ 			IOLockUnlock(fFB->fLock);
++#if defined(VINCE)
++			if (changed) {
++				vince_wled_set(!off);   /* the backlight itself (patch 0981); black frame as before */
++			}
++#endif
+ 			if (changed && fFB->fDsi != NULL) {
+ 				if (off) {
+ 					fFB->setPanelOn(false);
+-- 
+2.43.0
+
