@@ -1,0 +1,288 @@
+From 96a626f674ff1e2d9cbcd8ae94507b77a433ed5c Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Fri, 6 Nov 2026 07:25:09 +0000
+Subject: [PATCH] 0979 vince: battery from the PMI8950 over SPMI (read only)
+
+---
+ bsd/conf/files                    |   1 +
+ bsd/dev/vince_pmic.c              | 113 ++++++++++++++++++++++++++++++
+ iokit/Kernel/arm/SweetBattery.cpp |  60 ++++++++++++++--
+ iokit/KernelConfigTables.cpp      |   6 --
+ 4 files changed, 168 insertions(+), 12 deletions(-)
+ create mode 100644 bsd/dev/vince_pmic.c
+
+diff --git a/bsd/conf/files b/bsd/conf/files
+index a34e872..c8a2b25 100644
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -108,6 +108,7 @@ bsd/dev/sweet_ufs.c			standard
+ bsd/dev/vince_emmc_hw.c		standard
+ bsd/dev/vince_emmc.c			standard
+ bsd/dev/vince_input.c			standard
++bsd/dev/vince_pmic.c			standard
+ bsd/dev/redwood_sta.c		standard
+ bsd/dev/redwood_net.c		standard
+ bsd/dev/redwood_apple80211.c	standard
+diff --git a/bsd/dev/vince_pmic.c b/bsd/dev/vince_pmic.c
+new file mode 100644
+index 0000000..841d029
+--- /dev/null
++++ b/bsd/dev/vince_pmic.c
+@@ -0,0 +1,113 @@
++/*
++ * VINCE PMIC reads over the SPMI arbiter, for the battery service (iokit/Kernel/arm/SweetBattery.cpp).
++ * Patch 0979: the read path of patch 0127 of https://github.com/arabaci0711-ux/ios-vince (its RTC part, which
++ * writes PMIC registers, is not taken).
++ * A port of the read path of vince-bringup/shim/spmi.c (measured on the phone: PMIC_ARB_VERSION 0x20010000). Reads go
++ * through the observer channels, which are read only, so nothing here can change a PMIC register. PPID = SID << 8 |
++ * peripheral page: PMI8950 (SID 2) has the SMBCHG charger at 0x210..0x216 and the fuel gauge at 0x240..0x244.
++ */
++#if defined(VINCE)
++#include <sys/param.h>
++#include <sys/systm.h>
++#include <kern/clock.h>
++#include <kern/locks.h>
++#include <machine/machine_routines.h>
++
++extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
++
++#define ARB_CORE        0x0200F000u
++#define ARB_CNFG        0x0200A000u
++#define ARB_OBSRVR      0x02C00000u
++#define CMD             0x00u
++#define STATUS          0x08u
++#define RDATA0          0x18u
++#define OP_EXT_READL    1u
++
++static vm_offset_t pmic_core, pmic_cnfg;
++static struct {
++	unsigned ppid;
++	vm_offset_t chan;
++} pmic_chan[8];
++static unsigned pmic_nchan;
++static lck_grp_t *pmic_grp;
++static lck_mtx_t *pmic_lock;
++
++int
++vince_pmic_init(void)
++{
++	if (pmic_lock) {
++		return 0;
++	}
++	pmic_core = ml_io_map(ARB_CORE, 0x1000);
++	pmic_cnfg = ml_io_map(ARB_CNFG, 0x1000);
++	if (!pmic_core || !pmic_cnfg) {
++		return -1;
++	}
++	pmic_grp = lck_grp_alloc_init("vince_pmic", LCK_GRP_ATTR_NULL);
++	pmic_lock = lck_mtx_alloc_init(pmic_grp, LCK_ATTR_NULL);
++	return 0;
++}
++
++static vm_offset_t
++pmic_channel(unsigned ppid)
++{
++	for (unsigned i = 0; i < pmic_nchan; i++) {
++		if (pmic_chan[i].ppid == ppid) {
++			return pmic_chan[i].chan;
++		}
++	}
++	if (pmic_nchan >= sizeof(pmic_chan) / sizeof(pmic_chan[0])) {
++		return 0;
++	}
++	for (unsigned apid = 0; apid < 256; apid++) {
++		uint32_t v = *(volatile uint32_t *)(pmic_core + 0x800 + 4 * apid);
++
++		if (v && ((v >> 8) & 0xFFF) == ppid) {
++			vm_offset_t c = ml_io_map(ARB_OBSRVR + 0x8000u * apid, 0x1000);
++
++			if (c) {
++				pmic_chan[pmic_nchan].ppid = ppid;
++				pmic_chan[pmic_nchan].chan = c;
++				pmic_nchan++;
++			}
++			return c;
++		}
++	}
++	return 0;
++}
++
++/* 0 ok; <0 no such peripheral or the read failed */
++int
++vince_pmic_read(unsigned ppid, unsigned reg, uint8_t *val)
++{
++	vm_offset_t c;
++	int r = -100;
++
++	if (!pmic_lock) {
++		return -2;
++	}
++	lck_mtx_lock(pmic_lock);
++	c = pmic_channel(ppid);
++	if (!c) {
++		lck_mtx_unlock(pmic_lock);
++		return -1;
++	}
++	*(volatile uint32_t *)(c + CMD) = OP_EXT_READL << 27 | (reg & 0xFFu) << 4;
++	for (int i = 0; i < 10000; i++) {
++		uint32_t s = *(volatile uint32_t *)(c + STATUS);
++
++		if (s & 0xE) {
++			r = -(int)s;
++			break;
++		}
++		if (s & 1) {
++			*val = (uint8_t)*(volatile uint32_t *)(c + RDATA0);
++			r = 0;
++			break;
++		}
++		delay(1);
++	}
++	lck_mtx_unlock(pmic_lock);
++	return r;
++}
++#endif /* VINCE */
+diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
+index ed9a0c7..7fbe33d 100644
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -12,6 +12,14 @@
+ #include <IOKit/pwr_mgt/IOPMPowerSource.h>
+ #include <libkern/c++/OSCollectionIterator.h>
+ #include <pexpert/pexpert.h>
++#if defined(VINCE)
++/* bsd/dev/vince_pmic.c: PMI8950 (SMBCHG charger, FG state of charge) over the SPMI arbiter, read only */
++extern "C" int vince_pmic_init(void);
++extern "C" int vince_pmic_read(unsigned ppid, unsigned reg, uint8_t *out);
++#define BATT_MAH 4000u          /* Redmi 5 Plus */
++#else
++#define BATT_MAH 5020u
++#endif
+ /* bsd/dev/sweet_spmi.c */
+ extern "C" int sweet_spmi_init(void);
+ extern "C" int sweet_spmi_read(unsigned sid, unsigned addr, uint8_t *out);
+@@ -107,11 +115,11 @@ void
+ SweetBattery::publish(unsigned percent, unsigned mv, int ma, bool external,
+     bool capable, bool charging, bool full, bool measured, bool currentValid)
+ {
+-	/* Use consistent mAh units (DT nominal=5020). powerd computes C*100/M. */
+-	const unsigned capacity = (5020u * percent + 50u) / 100u;
++	/* Use consistent mAh units (DT nominal=BATT_MAH). powerd computes C*100/M. */
++	const unsigned capacity = (BATT_MAH * percent + 50u) / 100u;
+ 	setBatteryInstalled(true);
+ 	setCurrentCapacity(capacity);
+-	setMaxCapacity(5020);
++	setMaxCapacity(BATT_MAH);
+ 	setExternalConnected(external);
+ 	setExternalChargeCapable(capable);
+ 	setIsCharging(charging);
+@@ -125,8 +133,8 @@ SweetBattery::publish(unsigned percent, unsigned mv, int ma, bool external,
+ 	putBool("FullyCharged", full);
+ 	putBool("AppleRawExternalConnected", external);
+ 	putNumber("AppleRawCurrentCapacity", capacity);
+-	putNumber("AppleRawMaxCapacity", 5020);
+-	putNumber("DesignCapacity", 5020);
++	putNumber("AppleRawMaxCapacity", BATT_MAH);
++	putNumber("DesignCapacity", BATT_MAH);
+ 	putNumber("InstantAmperage", (UInt32)ma);
+ 	/* iOS battery convention: centidegrees C; fixed 25 C, NOT measured. */
+ 	putNumber("Temperature", 2500);
+@@ -143,7 +151,7 @@ SweetBattery::publish(unsigned percent, unsigned mv, int ma, bool external,
+ 		const char *keys[] = {kIOBatteryCurrentChargeKey, kIOBatteryCapacityKey,
+ 		    kIOBatteryVoltageKey, kIOBatteryAmperageKey, kIOBatteryCycleCountKey,
+ 		    kIOBatteryFlagsKey};
+-		UInt32 values[] = {capacity, 5020, mv, (UInt32)ma, 0,
++		UInt32 values[] = {capacity, BATT_MAH, mv, (UInt32)ma, 0,
+ 		    (UInt32)(kIOBatteryInstalled | (external ? kIOBatteryChargerConnect : 0) |
+ 		    (charging ? kIOBatteryCharge : 0))};
+ 		for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+@@ -372,6 +380,38 @@ SweetBattery::pollTopaz(void)
+ void
+ SweetBattery::poll(void)
+ {
++#if defined(VINCE)
++	/*
++	 * PMI8950 (patch 0127 of arabaci0711-ux/ios-vince): fuel gauge monotonic SOC (page 0x240, reg 0x09/0x0a shadow
++	 * pair, 0..255) mapped like qpnp-fg get_prop_capacity; charger USB presence (0x213 RT_STS bit2 source detect,
++	 * bit1 over-voltage, INPUT_STS 0x0d bits 3..5), CHGR_STS (0x210 reg 0x0e: bit3 hold-off, bits 2:1 charge type
++	 * 0 none/1 pre/2 fast/3 taper) and RT_STS (0x210 reg 0x10: bit7 termination reached, bit1 inhibit); battery
++	 * present 0x212 reg 0x08 bit7. Voltage, current and temperature live in the FG SRAM and are not read:
++	 * estimated and flagged as such.
++	 */
++	uint8_t s0 = 0, s1 = 1, bat = 0, usb = 0, inp = 0, sts = 0, crt = 0;
++	bool valid = fReal;
++
++	for (int i = 0; valid && i < 4 && s0 != s1; i++) {
++		valid = !vince_pmic_read(0x240, 0x09, &s0) && !vince_pmic_read(0x240, 0x0a, &s1);
++	}
++	valid = valid && s0 == s1 && s0 != 0 &&
++	    !vince_pmic_read(0x212, 0x08, &bat) && (bat & 0x80) &&
++	    !vince_pmic_read(0x213, 0x10, &usb) && !vince_pmic_read(0x213, 0x0d, &inp) &&
++	    !vince_pmic_read(0x210, 0x0e, &sts) && !vince_pmic_read(0x210, 0x10, &crt);
++	if (!valid) {
++		/* an unreadable or empty gauge must not become 0 % (the shutdown paths treat it as critical) */
++		publish(100, 4200, 0, true, true, false, true, false, false);
++		return;
++	}
++	unsigned percent = s0 >= 255 ? 100u : ((unsigned)(s0 - 1) * 98u + 126u) / 253u + 1u;
++	bool external = (usb & 0x04u) && !(usb & 0x02u) && (inp & 0x38u);
++	unsigned type = (sts >> 1) & 3u;
++	bool full = external && ((crt & 0x80u) || (crt & 0x02u));
++	bool charging = external && !full && !(sts & 0x08u) && type != 0;
++	unsigned mv = 3300u + percent * 9u;
++	publish(full ? 100u : percent, mv, charging ? 500 : 0, external, external, charging, full, true, false);
++#else
+ 	if (fReal && pollTopaz()) {
+ 		return;
+ 	}
+@@ -417,6 +457,7 @@ SweetBattery::poll(void)
+ 	}
+ 	publish(full ? 100 : estimatePercent(mv), mv, ma, external, capable,
+ 	    charging, full, true, currentValid);
++#endif
+ }
+ 
+ void
+@@ -435,10 +476,17 @@ SweetBattery::start(IOService *provider)
+ 	if (!IOPMPowerSource::start(provider)) {
+ 		return false;
+ 	}
++#if defined(VINCE)
++	int real = 1;   /* sweetbattery=0: static 100 %, AC, as before this patch */
++	(void)PE_parse_boot_argn("sweetbattery", &real, sizeof(real));
++	fReal = real != 0 && vince_pmic_init() == 0;
++	IOLog("VINCE BATTERY: %s\n", fReal ? "reading PMI8950 over SPMI (read only)" : "static fallback");
++#else
+ 	(void)sweet_cpufreq_max();
+ 	int real = 1;   /* topaz: real gauge by default; sweetbattery=0 for the static fallback */
+ 	(void)PE_parse_boot_argn("sweetbattery", &real, sizeof(real));
+ 	fReal = real == 1 && sweet_i2c1_init() == 0;
++#endif
+ 	/* Publish a complete source BEFORE registerService wakes powerd. */
+ 	poll();
+ 	if (fReal) {
+diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
+index 17ada48..92f3e26 100644
+--- a/iokit/KernelConfigTables.cpp
++++ b/iokit/KernelConfigTables.cpp
+@@ -77,17 +77,11 @@ const char * gIOKernelConfigTables =
+     "     'IOProviderClass' = IOResources;"
+     "     'IOMatchCategory' = SweetHIDTouch;"
+     "   },"
+-#if !defined(VINCE)
+-    /*
+-     * vince: SweetBattery pokes SM6225 clock/I2C/cpufreq registers; on MSM8953 those addresses
+-     * hang the bus (no output, then a reset ~30 s later).
+-     */
+     "   {"
+     "     'IOClass'         = SweetBattery;"
+     "     'IOProviderClass' = IOResources;"
+     "     'IOMatchCategory' = SweetBattery;"
+     "   },"
+-#endif
+ #endif
+     "   {"
+     "     'IOClass'         = IOPanicPlatform;"
+-- 
+2.43.0
+
