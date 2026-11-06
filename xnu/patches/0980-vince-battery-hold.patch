@@ -1,0 +1,57 @@
+From df6a88d85458742f7879f2eda08f31cc6cda0b85 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Fri, 6 Nov 2026 08:03:54 +0000
+Subject: [PATCH] 0980 vince: battery keeps the last good reading across a
+ failed PMIC read
+
+---
+ iokit/Kernel/arm/SweetBattery.cpp | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
+index 7fbe33d..8d39671 100644
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -399,18 +399,38 @@ SweetBattery::poll(void)
+ 	    !vince_pmic_read(0x212, 0x08, &bat) && (bat & 0x80) &&
+ 	    !vince_pmic_read(0x213, 0x10, &usb) && !vince_pmic_read(0x213, 0x0d, &inp) &&
+ 	    !vince_pmic_read(0x210, 0x0e, &sts) && !vince_pmic_read(0x210, 0x10, &crt);
++	static bool have_last;
++	static unsigned last_pct, last_mv, fails;
++	static int last_ma;
++	static bool last_ext, last_chg, last_full;
+ 	if (!valid) {
++		/*
++		 * Patch 0980: one failed read (seen in the field: static 100 % / external for one poll, then back)
++		 * keeps the last good reading for up to 6 polls (about a minute) instead of flapping.
++		 */
++		if (have_last && ++fails <= 6) {
++			publish(last_pct, last_mv, last_ma, last_ext, last_ext, last_chg, last_full, true, false);
++			return;
++		}
+ 		/* an unreadable or empty gauge must not become 0 % (the shutdown paths treat it as critical) */
+ 		publish(100, 4200, 0, true, true, false, true, false, false);
+ 		return;
+ 	}
++	fails = 0;
+ 	unsigned percent = s0 >= 255 ? 100u : ((unsigned)(s0 - 1) * 98u + 126u) / 253u + 1u;
+ 	bool external = (usb & 0x04u) && !(usb & 0x02u) && (inp & 0x38u);
+ 	unsigned type = (sts >> 1) & 3u;
+ 	bool full = external && ((crt & 0x80u) || (crt & 0x02u));
+ 	bool charging = external && !full && !(sts & 0x08u) && type != 0;
+ 	unsigned mv = 3300u + percent * 9u;
+-	publish(full ? 100u : percent, mv, charging ? 500 : 0, external, external, charging, full, true, false);
++	have_last = true;
++	last_pct = full ? 100u : percent;
++	last_mv = mv;
++	last_ma = charging ? 500 : 0;
++	last_ext = external;
++	last_chg = charging;
++	last_full = full;
++	publish(last_pct, mv, last_ma, external, external, charging, full, true, false);
+ #else
+ 	if (fReal && pollTopaz()) {
+ 		return;
+-- 
+2.43.0
+
