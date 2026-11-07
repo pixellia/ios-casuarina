@@ -150,6 +150,15 @@ for off, names in entries:
     w("}")
     w("")
     table.append((off, 'eagl_gen_' + gen))
+# every other entry of the table gets a stub that says it was called (CoreAnimation calls entries that iOS's
+# OpenGLES has no gl* name for): a NULL there is a crash at pc 0
+SLOT_COUNT = 0x440
+have = set(o for o, _ in table)
+for off in range(8, SLOT_COUNT * 8, 8):
+    if off not in have:
+        w("static long eagl_gen_missing_%x(void *context) { return eagl_missing(context, %#x); }" % (off, off))
+        table.append((off, 'eagl_gen_missing_%x' % off))
+w("")
 last = max(o for o, _ in table)
 w("#define EAGL_TABLE_SIZE %#x" % (last + 8))
 w("")

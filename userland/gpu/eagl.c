@@ -3426,6 +3426,20 @@ my_glDeleteProgram(void *context, GLuint name)
 
 _Static_assert(EAGL_TABLE_SIZE <= SLOTS * 8, "the table has grown");
 
+/* The four words before the context in iOS 16.7's table: what they are is not known, so each says when it is called. */
+#define HEADER_STUB(n) \
+	static long eagl_header_##n(void *context) \
+	{ \
+		(void)context; \
+		say("redwood-gl: CALLED AND NOT THERE: header word %d (table at -0x%x)\n", n, (4 - n) * 8); \
+		return 0; \
+	}
+HEADER_STUB(0)
+HEADER_STUB(1)
+HEADER_STUB(2)
+HEADER_STUB(3)
+
+
 /* ---- EAGLContext ---------------------------------------------------------------------------------- */
 
 static id
@@ -3452,6 +3466,11 @@ my_initWithAPI(id self, SEL selector, unsigned long api, id properties)
 	e->api = api;
 	e->table[0] = e;
 	eagl_fill_table(e->table);
+	e->header[0] = (void *)eagl_header_0;
+	e->header[1] = (void *)eagl_header_1;
+	e->header[2] = (void *)eagl_header_2;
+	e->header[3] = (void *)eagl_header_3;
+	say("redwood-gl: table: %d entries, built " __DATE__ " " __TIME__ "\n", EAGL_TABLE_SIZE / 8);
 	contexts[place] = e;
 	say("redwood-gl: an OpenGL ES %lu context for CoreAnimation, by %s: %s; %s; shaders %s\n", api, redwood_gl_library(),
 	    (const char *)glGetString(GL_VERSION), (const char *)glGetString(GL_RENDERER),
