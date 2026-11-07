@@ -1,0 +1,50 @@
+From e17d861b1c223a6bb518655df4b05796e8dacc7d Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sat, 7 Nov 2026 15:42:15 +0000
+Subject: [PATCH] 0985 vince: log jetsam per-process limit hits, vincenolimit=1
+ skips the kill
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/kern/kern_memorystatus.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/bsd/kern/kern_memorystatus.c b/bsd/kern/kern_memorystatus.c
+index 24ecbf3..b0d68b6 100644
+--- a/bsd/kern/kern_memorystatus.c
++++ b/bsd/kern/kern_memorystatus.c
+@@ -4255,6 +4255,30 @@ memorystatus_on_ledger_footprint_exceeded(boolean_t warning, boolean_t memlimit_
+ 	}
+ #endif /* VM_PRESSURE_EVENTS */
+ 
++#if defined(VINCE)
++	/*
++	 * Say which process went over which limit, and with boot-arg vincenolimit=1 let it go on instead of
++	 * killing it (Mesa's shader compiler killed vince-gputest here, with no way to see the limit).
++	 */
++	{
++		static int vince_nolimit = -1;
++		int limit_mb = -1;
++		unsigned long long footprint_mb = get_task_phys_footprint(proc_task(p)) >> 20;
++
++		(void)task_get_phys_footprint_limit(proc_task(p), &limit_mb);
++		if (vince_nolimit < 0) {
++			uint32_t arg = 0;
++			vince_nolimit = (PE_parse_boot_argn("vincenolimit", &arg, sizeof(arg)) && arg) ? 1 : 0;
++		}
++		printf("VINCE JETSAM: pid %d %s over its limit: footprint %llu MB, limit %d MB, active %d, fatal %d%s\n",
++		    proc_getpid(p), proc_best_name(p), footprint_mb, limit_mb, (int)memlimit_is_active,
++		    (int)memlimit_is_fatal, vince_nolimit ? ", NOT killed (vincenolimit=1)" : "");
++		if (vince_nolimit && memlimit_is_fatal) {
++			return;
++		}
++	}
++#endif /* VINCE */
++
+ 	if (memlimit_is_fatal) {
+ 		/*
+ 		 * If this process has no high watermark or has a fatal task limit, then we have been invoked because the task
+-- 
+2.43.0
+
