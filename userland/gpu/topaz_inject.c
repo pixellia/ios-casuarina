@@ -231,7 +231,7 @@ topaz_inject(void)
 	}
 	/* the kernel starts the GPU once the root filesystem is there: give it a moment */
 	for (int i = 0; i < 50; i++) {
-		gpu = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("RedwoodGPU"));
+		gpu = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("VinceGPU"));
 		if (gpu != 0) {
 			break;
 		}

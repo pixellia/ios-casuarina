@@ -239,6 +239,7 @@ struct image {
 };
 
 struct eagl {
+	void *header[4];                /* iOS 16.7's table has four words before the context (its entries are at 0x20 more than in older iOS) */
 	void *table[SLOTS];             /* [0] is the context itself: what every entry gets as its first argument */
 	id object;                      /* the EAGLContext */
 	struct redwood_gl *gl;
@@ -3482,7 +3483,7 @@ my_getMacroContextPrivate(id self, SEL selector)
 	struct eagl *e = context_of(self);
 
 	(void)selector;
-	return e ? e->table : NULL;
+	return e ? (void *)e->header : NULL;
 }
 
 /* (the types are the method's own: the last three arrive on the stack, where sizes matter) */

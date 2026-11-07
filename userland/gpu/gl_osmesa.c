@@ -80,6 +80,11 @@ redwood_gl_destroy(struct redwood_gl *gl)
 	free(gl);
 }
 
+void (*redwood_gl_proc(const char *name))(void)
+{
+	return OSMesaGetProcAddress(name);
+}
+
 const char *
 redwood_gl_library(void)
 {
