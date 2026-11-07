@@ -122,9 +122,9 @@ for off, names in entries:
     if gen is None:
         missing_names.append('/'.join(names))
         w("static long")
-        w("eagl_gen_missing_%x(void *context)" % off)
+        w("eagl_gen_missing_%x(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3)" % off)
         w("{")
-        w("\treturn eagl_missing(context, %#x);" % off)
+        w("\treturn eagl_missing_raw(%#x, a0, a1, a2, a3);" % off)
         w("}")
         table.append((off, 'eagl_gen_missing_%x' % off))
         continue
@@ -156,7 +156,7 @@ SLOT_COUNT = 0x440
 have = set(o for o, _ in table)
 for off in range(8, SLOT_COUNT * 8, 8):
     if off not in have:
-        w("static long eagl_gen_missing_%x(void *context) { return eagl_missing(context, %#x); }" % (off, off))
+        w("static long eagl_gen_missing_%x(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(%#x, a0, a1, a2, a3); }" % (off, off))
         table.append((off, 'eagl_gen_missing_%x' % off))
 w("")
 last = max(o for o, _ in table)

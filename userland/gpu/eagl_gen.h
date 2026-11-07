@@ -6120,9 +6120,9 @@ eagl_gen_glDiscardFramebufferEXT(void *context, GLenum a0, GLsizei a1, const GLe
 }
 
 static long
-eagl_gen_missing_2010(void *context)
+eagl_gen_missing_2010(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3)
 {
-	return eagl_missing(context, 0x2010);
+	return eagl_missing_raw(0x2010, a0, a1, a2, a3);
 }
 static void
 eagl_gen_glResolveMultisampleFramebufferAPPLE(void *context)
@@ -6202,684 +6202,684 @@ eagl_gen_glTexStorage3D(void *context, GLenum a0, GLsizei a1, GLenum a2, GLsizei
 	EAGL_LEAVE(e, 0x2048);
 }
 
-static long eagl_gen_missing_8(void *context) { return eagl_missing(context, 0x8); }
-static long eagl_gen_missing_18(void *context) { return eagl_missing(context, 0x18); }
-static long eagl_gen_missing_20(void *context) { return eagl_missing(context, 0x20); }
-static long eagl_gen_missing_28(void *context) { return eagl_missing(context, 0x28); }
-static long eagl_gen_missing_38(void *context) { return eagl_missing(context, 0x38); }
-static long eagl_gen_missing_48(void *context) { return eagl_missing(context, 0x48); }
-static long eagl_gen_missing_50(void *context) { return eagl_missing(context, 0x50); }
-static long eagl_gen_missing_60(void *context) { return eagl_missing(context, 0x60); }
-static long eagl_gen_missing_70(void *context) { return eagl_missing(context, 0x70); }
-static long eagl_gen_missing_78(void *context) { return eagl_missing(context, 0x78); }
-static long eagl_gen_missing_88(void *context) { return eagl_missing(context, 0x88); }
-static long eagl_gen_missing_90(void *context) { return eagl_missing(context, 0x90); }
-static long eagl_gen_missing_98(void *context) { return eagl_missing(context, 0x98); }
-static long eagl_gen_missing_a0(void *context) { return eagl_missing(context, 0xa0); }
-static long eagl_gen_missing_a8(void *context) { return eagl_missing(context, 0xa8); }
-static long eagl_gen_missing_b0(void *context) { return eagl_missing(context, 0xb0); }
-static long eagl_gen_missing_b8(void *context) { return eagl_missing(context, 0xb8); }
-static long eagl_gen_missing_c0(void *context) { return eagl_missing(context, 0xc0); }
-static long eagl_gen_missing_c8(void *context) { return eagl_missing(context, 0xc8); }
-static long eagl_gen_missing_d0(void *context) { return eagl_missing(context, 0xd0); }
-static long eagl_gen_missing_d8(void *context) { return eagl_missing(context, 0xd8); }
-static long eagl_gen_missing_e0(void *context) { return eagl_missing(context, 0xe0); }
-static long eagl_gen_missing_e8(void *context) { return eagl_missing(context, 0xe8); }
-static long eagl_gen_missing_f0(void *context) { return eagl_missing(context, 0xf0); }
-static long eagl_gen_missing_f8(void *context) { return eagl_missing(context, 0xf8); }
-static long eagl_gen_missing_100(void *context) { return eagl_missing(context, 0x100); }
-static long eagl_gen_missing_108(void *context) { return eagl_missing(context, 0x108); }
-static long eagl_gen_missing_110(void *context) { return eagl_missing(context, 0x110); }
-static long eagl_gen_missing_118(void *context) { return eagl_missing(context, 0x118); }
-static long eagl_gen_missing_120(void *context) { return eagl_missing(context, 0x120); }
-static long eagl_gen_missing_128(void *context) { return eagl_missing(context, 0x128); }
-static long eagl_gen_missing_138(void *context) { return eagl_missing(context, 0x138); }
-static long eagl_gen_missing_140(void *context) { return eagl_missing(context, 0x140); }
-static long eagl_gen_missing_148(void *context) { return eagl_missing(context, 0x148); }
-static long eagl_gen_missing_150(void *context) { return eagl_missing(context, 0x150); }
-static long eagl_gen_missing_158(void *context) { return eagl_missing(context, 0x158); }
-static long eagl_gen_missing_168(void *context) { return eagl_missing(context, 0x168); }
-static long eagl_gen_missing_170(void *context) { return eagl_missing(context, 0x170); }
-static long eagl_gen_missing_178(void *context) { return eagl_missing(context, 0x178); }
-static long eagl_gen_missing_180(void *context) { return eagl_missing(context, 0x180); }
-static long eagl_gen_missing_188(void *context) { return eagl_missing(context, 0x188); }
-static long eagl_gen_missing_198(void *context) { return eagl_missing(context, 0x198); }
-static long eagl_gen_missing_1a8(void *context) { return eagl_missing(context, 0x1a8); }
-static long eagl_gen_missing_1b0(void *context) { return eagl_missing(context, 0x1b0); }
-static long eagl_gen_missing_1c0(void *context) { return eagl_missing(context, 0x1c0); }
-static long eagl_gen_missing_1d8(void *context) { return eagl_missing(context, 0x1d8); }
-static long eagl_gen_missing_1f8(void *context) { return eagl_missing(context, 0x1f8); }
-static long eagl_gen_missing_218(void *context) { return eagl_missing(context, 0x218); }
-static long eagl_gen_missing_228(void *context) { return eagl_missing(context, 0x228); }
-static long eagl_gen_missing_230(void *context) { return eagl_missing(context, 0x230); }
-static long eagl_gen_missing_238(void *context) { return eagl_missing(context, 0x238); }
-static long eagl_gen_missing_240(void *context) { return eagl_missing(context, 0x240); }
-static long eagl_gen_missing_258(void *context) { return eagl_missing(context, 0x258); }
-static long eagl_gen_missing_260(void *context) { return eagl_missing(context, 0x260); }
-static long eagl_gen_missing_268(void *context) { return eagl_missing(context, 0x268); }
-static long eagl_gen_missing_270(void *context) { return eagl_missing(context, 0x270); }
-static long eagl_gen_missing_278(void *context) { return eagl_missing(context, 0x278); }
-static long eagl_gen_missing_280(void *context) { return eagl_missing(context, 0x280); }
-static long eagl_gen_missing_288(void *context) { return eagl_missing(context, 0x288); }
-static long eagl_gen_missing_290(void *context) { return eagl_missing(context, 0x290); }
-static long eagl_gen_missing_298(void *context) { return eagl_missing(context, 0x298); }
-static long eagl_gen_missing_2a0(void *context) { return eagl_missing(context, 0x2a0); }
-static long eagl_gen_missing_2a8(void *context) { return eagl_missing(context, 0x2a8); }
-static long eagl_gen_missing_2b0(void *context) { return eagl_missing(context, 0x2b0); }
-static long eagl_gen_missing_2b8(void *context) { return eagl_missing(context, 0x2b8); }
-static long eagl_gen_missing_2c0(void *context) { return eagl_missing(context, 0x2c0); }
-static long eagl_gen_missing_2c8(void *context) { return eagl_missing(context, 0x2c8); }
-static long eagl_gen_missing_2f0(void *context) { return eagl_missing(context, 0x2f0); }
-static long eagl_gen_missing_2f8(void *context) { return eagl_missing(context, 0x2f8); }
-static long eagl_gen_missing_308(void *context) { return eagl_missing(context, 0x308); }
-static long eagl_gen_missing_310(void *context) { return eagl_missing(context, 0x310); }
-static long eagl_gen_missing_328(void *context) { return eagl_missing(context, 0x328); }
-static long eagl_gen_missing_330(void *context) { return eagl_missing(context, 0x330); }
-static long eagl_gen_missing_358(void *context) { return eagl_missing(context, 0x358); }
-static long eagl_gen_missing_360(void *context) { return eagl_missing(context, 0x360); }
-static long eagl_gen_missing_368(void *context) { return eagl_missing(context, 0x368); }
-static long eagl_gen_missing_370(void *context) { return eagl_missing(context, 0x370); }
-static long eagl_gen_missing_380(void *context) { return eagl_missing(context, 0x380); }
-static long eagl_gen_missing_388(void *context) { return eagl_missing(context, 0x388); }
-static long eagl_gen_missing_390(void *context) { return eagl_missing(context, 0x390); }
-static long eagl_gen_missing_398(void *context) { return eagl_missing(context, 0x398); }
-static long eagl_gen_missing_3a8(void *context) { return eagl_missing(context, 0x3a8); }
-static long eagl_gen_missing_3c8(void *context) { return eagl_missing(context, 0x3c8); }
-static long eagl_gen_missing_3d0(void *context) { return eagl_missing(context, 0x3d0); }
-static long eagl_gen_missing_3d8(void *context) { return eagl_missing(context, 0x3d8); }
-static long eagl_gen_missing_410(void *context) { return eagl_missing(context, 0x410); }
-static long eagl_gen_missing_418(void *context) { return eagl_missing(context, 0x418); }
-static long eagl_gen_missing_420(void *context) { return eagl_missing(context, 0x420); }
-static long eagl_gen_missing_428(void *context) { return eagl_missing(context, 0x428); }
-static long eagl_gen_missing_430(void *context) { return eagl_missing(context, 0x430); }
-static long eagl_gen_missing_438(void *context) { return eagl_missing(context, 0x438); }
-static long eagl_gen_missing_440(void *context) { return eagl_missing(context, 0x440); }
-static long eagl_gen_missing_448(void *context) { return eagl_missing(context, 0x448); }
-static long eagl_gen_missing_450(void *context) { return eagl_missing(context, 0x450); }
-static long eagl_gen_missing_458(void *context) { return eagl_missing(context, 0x458); }
-static long eagl_gen_missing_460(void *context) { return eagl_missing(context, 0x460); }
-static long eagl_gen_missing_468(void *context) { return eagl_missing(context, 0x468); }
-static long eagl_gen_missing_470(void *context) { return eagl_missing(context, 0x470); }
-static long eagl_gen_missing_478(void *context) { return eagl_missing(context, 0x478); }
-static long eagl_gen_missing_488(void *context) { return eagl_missing(context, 0x488); }
-static long eagl_gen_missing_4a8(void *context) { return eagl_missing(context, 0x4a8); }
-static long eagl_gen_missing_4b0(void *context) { return eagl_missing(context, 0x4b0); }
-static long eagl_gen_missing_4c8(void *context) { return eagl_missing(context, 0x4c8); }
-static long eagl_gen_missing_4d0(void *context) { return eagl_missing(context, 0x4d0); }
-static long eagl_gen_missing_4d8(void *context) { return eagl_missing(context, 0x4d8); }
-static long eagl_gen_missing_4e8(void *context) { return eagl_missing(context, 0x4e8); }
-static long eagl_gen_missing_4f8(void *context) { return eagl_missing(context, 0x4f8); }
-static long eagl_gen_missing_508(void *context) { return eagl_missing(context, 0x508); }
-static long eagl_gen_missing_518(void *context) { return eagl_missing(context, 0x518); }
-static long eagl_gen_missing_520(void *context) { return eagl_missing(context, 0x520); }
-static long eagl_gen_missing_528(void *context) { return eagl_missing(context, 0x528); }
-static long eagl_gen_missing_530(void *context) { return eagl_missing(context, 0x530); }
-static long eagl_gen_missing_538(void *context) { return eagl_missing(context, 0x538); }
-static long eagl_gen_missing_540(void *context) { return eagl_missing(context, 0x540); }
-static long eagl_gen_missing_548(void *context) { return eagl_missing(context, 0x548); }
-static long eagl_gen_missing_550(void *context) { return eagl_missing(context, 0x550); }
-static long eagl_gen_missing_568(void *context) { return eagl_missing(context, 0x568); }
-static long eagl_gen_missing_570(void *context) { return eagl_missing(context, 0x570); }
-static long eagl_gen_missing_580(void *context) { return eagl_missing(context, 0x580); }
-static long eagl_gen_missing_590(void *context) { return eagl_missing(context, 0x590); }
-static long eagl_gen_missing_598(void *context) { return eagl_missing(context, 0x598); }
-static long eagl_gen_missing_5a0(void *context) { return eagl_missing(context, 0x5a0); }
-static long eagl_gen_missing_5a8(void *context) { return eagl_missing(context, 0x5a8); }
-static long eagl_gen_missing_5b0(void *context) { return eagl_missing(context, 0x5b0); }
-static long eagl_gen_missing_5c0(void *context) { return eagl_missing(context, 0x5c0); }
-static long eagl_gen_missing_5c8(void *context) { return eagl_missing(context, 0x5c8); }
-static long eagl_gen_missing_5d0(void *context) { return eagl_missing(context, 0x5d0); }
-static long eagl_gen_missing_5d8(void *context) { return eagl_missing(context, 0x5d8); }
-static long eagl_gen_missing_5e0(void *context) { return eagl_missing(context, 0x5e0); }
-static long eagl_gen_missing_5f0(void *context) { return eagl_missing(context, 0x5f0); }
-static long eagl_gen_missing_5f8(void *context) { return eagl_missing(context, 0x5f8); }
-static long eagl_gen_missing_600(void *context) { return eagl_missing(context, 0x600); }
-static long eagl_gen_missing_608(void *context) { return eagl_missing(context, 0x608); }
-static long eagl_gen_missing_610(void *context) { return eagl_missing(context, 0x610); }
-static long eagl_gen_missing_618(void *context) { return eagl_missing(context, 0x618); }
-static long eagl_gen_missing_628(void *context) { return eagl_missing(context, 0x628); }
-static long eagl_gen_missing_630(void *context) { return eagl_missing(context, 0x630); }
-static long eagl_gen_missing_638(void *context) { return eagl_missing(context, 0x638); }
-static long eagl_gen_missing_648(void *context) { return eagl_missing(context, 0x648); }
-static long eagl_gen_missing_658(void *context) { return eagl_missing(context, 0x658); }
-static long eagl_gen_missing_660(void *context) { return eagl_missing(context, 0x660); }
-static long eagl_gen_missing_668(void *context) { return eagl_missing(context, 0x668); }
-static long eagl_gen_missing_678(void *context) { return eagl_missing(context, 0x678); }
-static long eagl_gen_missing_680(void *context) { return eagl_missing(context, 0x680); }
-static long eagl_gen_missing_688(void *context) { return eagl_missing(context, 0x688); }
-static long eagl_gen_missing_690(void *context) { return eagl_missing(context, 0x690); }
-static long eagl_gen_missing_6a0(void *context) { return eagl_missing(context, 0x6a0); }
-static long eagl_gen_missing_6a8(void *context) { return eagl_missing(context, 0x6a8); }
-static long eagl_gen_missing_6b0(void *context) { return eagl_missing(context, 0x6b0); }
-static long eagl_gen_missing_6b8(void *context) { return eagl_missing(context, 0x6b8); }
-static long eagl_gen_missing_6c0(void *context) { return eagl_missing(context, 0x6c0); }
-static long eagl_gen_missing_6c8(void *context) { return eagl_missing(context, 0x6c8); }
-static long eagl_gen_missing_6d0(void *context) { return eagl_missing(context, 0x6d0); }
-static long eagl_gen_missing_6d8(void *context) { return eagl_missing(context, 0x6d8); }
-static long eagl_gen_missing_6e0(void *context) { return eagl_missing(context, 0x6e0); }
-static long eagl_gen_missing_6e8(void *context) { return eagl_missing(context, 0x6e8); }
-static long eagl_gen_missing_6f0(void *context) { return eagl_missing(context, 0x6f0); }
-static long eagl_gen_missing_6f8(void *context) { return eagl_missing(context, 0x6f8); }
-static long eagl_gen_missing_700(void *context) { return eagl_missing(context, 0x700); }
-static long eagl_gen_missing_708(void *context) { return eagl_missing(context, 0x708); }
-static long eagl_gen_missing_710(void *context) { return eagl_missing(context, 0x710); }
-static long eagl_gen_missing_718(void *context) { return eagl_missing(context, 0x718); }
-static long eagl_gen_missing_720(void *context) { return eagl_missing(context, 0x720); }
-static long eagl_gen_missing_728(void *context) { return eagl_missing(context, 0x728); }
-static long eagl_gen_missing_730(void *context) { return eagl_missing(context, 0x730); }
-static long eagl_gen_missing_738(void *context) { return eagl_missing(context, 0x738); }
-static long eagl_gen_missing_740(void *context) { return eagl_missing(context, 0x740); }
-static long eagl_gen_missing_748(void *context) { return eagl_missing(context, 0x748); }
-static long eagl_gen_missing_750(void *context) { return eagl_missing(context, 0x750); }
-static long eagl_gen_missing_758(void *context) { return eagl_missing(context, 0x758); }
-static long eagl_gen_missing_760(void *context) { return eagl_missing(context, 0x760); }
-static long eagl_gen_missing_778(void *context) { return eagl_missing(context, 0x778); }
-static long eagl_gen_missing_780(void *context) { return eagl_missing(context, 0x780); }
-static long eagl_gen_missing_788(void *context) { return eagl_missing(context, 0x788); }
-static long eagl_gen_missing_790(void *context) { return eagl_missing(context, 0x790); }
-static long eagl_gen_missing_798(void *context) { return eagl_missing(context, 0x798); }
-static long eagl_gen_missing_7a0(void *context) { return eagl_missing(context, 0x7a0); }
-static long eagl_gen_missing_7a8(void *context) { return eagl_missing(context, 0x7a8); }
-static long eagl_gen_missing_7b0(void *context) { return eagl_missing(context, 0x7b0); }
-static long eagl_gen_missing_7b8(void *context) { return eagl_missing(context, 0x7b8); }
-static long eagl_gen_missing_7c0(void *context) { return eagl_missing(context, 0x7c0); }
-static long eagl_gen_missing_7d0(void *context) { return eagl_missing(context, 0x7d0); }
-static long eagl_gen_missing_7e8(void *context) { return eagl_missing(context, 0x7e8); }
-static long eagl_gen_missing_810(void *context) { return eagl_missing(context, 0x810); }
-static long eagl_gen_missing_818(void *context) { return eagl_missing(context, 0x818); }
-static long eagl_gen_missing_820(void *context) { return eagl_missing(context, 0x820); }
-static long eagl_gen_missing_828(void *context) { return eagl_missing(context, 0x828); }
-static long eagl_gen_missing_830(void *context) { return eagl_missing(context, 0x830); }
-static long eagl_gen_missing_838(void *context) { return eagl_missing(context, 0x838); }
-static long eagl_gen_missing_840(void *context) { return eagl_missing(context, 0x840); }
-static long eagl_gen_missing_848(void *context) { return eagl_missing(context, 0x848); }
-static long eagl_gen_missing_850(void *context) { return eagl_missing(context, 0x850); }
-static long eagl_gen_missing_858(void *context) { return eagl_missing(context, 0x858); }
-static long eagl_gen_missing_860(void *context) { return eagl_missing(context, 0x860); }
-static long eagl_gen_missing_868(void *context) { return eagl_missing(context, 0x868); }
-static long eagl_gen_missing_870(void *context) { return eagl_missing(context, 0x870); }
-static long eagl_gen_missing_878(void *context) { return eagl_missing(context, 0x878); }
-static long eagl_gen_missing_880(void *context) { return eagl_missing(context, 0x880); }
-static long eagl_gen_missing_888(void *context) { return eagl_missing(context, 0x888); }
-static long eagl_gen_missing_890(void *context) { return eagl_missing(context, 0x890); }
-static long eagl_gen_missing_898(void *context) { return eagl_missing(context, 0x898); }
-static long eagl_gen_missing_8a0(void *context) { return eagl_missing(context, 0x8a0); }
-static long eagl_gen_missing_8a8(void *context) { return eagl_missing(context, 0x8a8); }
-static long eagl_gen_missing_8b0(void *context) { return eagl_missing(context, 0x8b0); }
-static long eagl_gen_missing_8b8(void *context) { return eagl_missing(context, 0x8b8); }
-static long eagl_gen_missing_8c0(void *context) { return eagl_missing(context, 0x8c0); }
-static long eagl_gen_missing_8c8(void *context) { return eagl_missing(context, 0x8c8); }
-static long eagl_gen_missing_8d0(void *context) { return eagl_missing(context, 0x8d0); }
-static long eagl_gen_missing_8d8(void *context) { return eagl_missing(context, 0x8d8); }
-static long eagl_gen_missing_8e0(void *context) { return eagl_missing(context, 0x8e0); }
-static long eagl_gen_missing_8e8(void *context) { return eagl_missing(context, 0x8e8); }
-static long eagl_gen_missing_8f0(void *context) { return eagl_missing(context, 0x8f0); }
-static long eagl_gen_missing_8f8(void *context) { return eagl_missing(context, 0x8f8); }
-static long eagl_gen_missing_900(void *context) { return eagl_missing(context, 0x900); }
-static long eagl_gen_missing_908(void *context) { return eagl_missing(context, 0x908); }
-static long eagl_gen_missing_938(void *context) { return eagl_missing(context, 0x938); }
-static long eagl_gen_missing_940(void *context) { return eagl_missing(context, 0x940); }
-static long eagl_gen_missing_948(void *context) { return eagl_missing(context, 0x948); }
-static long eagl_gen_missing_950(void *context) { return eagl_missing(context, 0x950); }
-static long eagl_gen_missing_958(void *context) { return eagl_missing(context, 0x958); }
-static long eagl_gen_missing_960(void *context) { return eagl_missing(context, 0x960); }
-static long eagl_gen_missing_968(void *context) { return eagl_missing(context, 0x968); }
-static long eagl_gen_missing_998(void *context) { return eagl_missing(context, 0x998); }
-static long eagl_gen_missing_9a8(void *context) { return eagl_missing(context, 0x9a8); }
-static long eagl_gen_missing_9b8(void *context) { return eagl_missing(context, 0x9b8); }
-static long eagl_gen_missing_9c0(void *context) { return eagl_missing(context, 0x9c0); }
-static long eagl_gen_missing_9c8(void *context) { return eagl_missing(context, 0x9c8); }
-static long eagl_gen_missing_9d0(void *context) { return eagl_missing(context, 0x9d0); }
-static long eagl_gen_missing_9d8(void *context) { return eagl_missing(context, 0x9d8); }
-static long eagl_gen_missing_9e0(void *context) { return eagl_missing(context, 0x9e0); }
-static long eagl_gen_missing_9e8(void *context) { return eagl_missing(context, 0x9e8); }
-static long eagl_gen_missing_9f0(void *context) { return eagl_missing(context, 0x9f0); }
-static long eagl_gen_missing_9f8(void *context) { return eagl_missing(context, 0x9f8); }
-static long eagl_gen_missing_a00(void *context) { return eagl_missing(context, 0xa00); }
-static long eagl_gen_missing_a08(void *context) { return eagl_missing(context, 0xa08); }
-static long eagl_gen_missing_a10(void *context) { return eagl_missing(context, 0xa10); }
-static long eagl_gen_missing_a18(void *context) { return eagl_missing(context, 0xa18); }
-static long eagl_gen_missing_a20(void *context) { return eagl_missing(context, 0xa20); }
-static long eagl_gen_missing_a28(void *context) { return eagl_missing(context, 0xa28); }
-static long eagl_gen_missing_a30(void *context) { return eagl_missing(context, 0xa30); }
-static long eagl_gen_missing_a38(void *context) { return eagl_missing(context, 0xa38); }
-static long eagl_gen_missing_a40(void *context) { return eagl_missing(context, 0xa40); }
-static long eagl_gen_missing_a48(void *context) { return eagl_missing(context, 0xa48); }
-static long eagl_gen_missing_a50(void *context) { return eagl_missing(context, 0xa50); }
-static long eagl_gen_missing_a58(void *context) { return eagl_missing(context, 0xa58); }
-static long eagl_gen_missing_a60(void *context) { return eagl_missing(context, 0xa60); }
-static long eagl_gen_missing_a68(void *context) { return eagl_missing(context, 0xa68); }
-static long eagl_gen_missing_a70(void *context) { return eagl_missing(context, 0xa70); }
-static long eagl_gen_missing_aa0(void *context) { return eagl_missing(context, 0xaa0); }
-static long eagl_gen_missing_aa8(void *context) { return eagl_missing(context, 0xaa8); }
-static long eagl_gen_missing_ac0(void *context) { return eagl_missing(context, 0xac0); }
-static long eagl_gen_missing_ac8(void *context) { return eagl_missing(context, 0xac8); }
-static long eagl_gen_missing_ad0(void *context) { return eagl_missing(context, 0xad0); }
-static long eagl_gen_missing_ad8(void *context) { return eagl_missing(context, 0xad8); }
-static long eagl_gen_missing_ae0(void *context) { return eagl_missing(context, 0xae0); }
-static long eagl_gen_missing_ae8(void *context) { return eagl_missing(context, 0xae8); }
-static long eagl_gen_missing_af0(void *context) { return eagl_missing(context, 0xaf0); }
-static long eagl_gen_missing_af8(void *context) { return eagl_missing(context, 0xaf8); }
-static long eagl_gen_missing_b00(void *context) { return eagl_missing(context, 0xb00); }
-static long eagl_gen_missing_b08(void *context) { return eagl_missing(context, 0xb08); }
-static long eagl_gen_missing_b10(void *context) { return eagl_missing(context, 0xb10); }
-static long eagl_gen_missing_b18(void *context) { return eagl_missing(context, 0xb18); }
-static long eagl_gen_missing_b20(void *context) { return eagl_missing(context, 0xb20); }
-static long eagl_gen_missing_b28(void *context) { return eagl_missing(context, 0xb28); }
-static long eagl_gen_missing_b30(void *context) { return eagl_missing(context, 0xb30); }
-static long eagl_gen_missing_b38(void *context) { return eagl_missing(context, 0xb38); }
-static long eagl_gen_missing_b40(void *context) { return eagl_missing(context, 0xb40); }
-static long eagl_gen_missing_b48(void *context) { return eagl_missing(context, 0xb48); }
-static long eagl_gen_missing_b50(void *context) { return eagl_missing(context, 0xb50); }
-static long eagl_gen_missing_b58(void *context) { return eagl_missing(context, 0xb58); }
-static long eagl_gen_missing_b60(void *context) { return eagl_missing(context, 0xb60); }
-static long eagl_gen_missing_b68(void *context) { return eagl_missing(context, 0xb68); }
-static long eagl_gen_missing_b70(void *context) { return eagl_missing(context, 0xb70); }
-static long eagl_gen_missing_b78(void *context) { return eagl_missing(context, 0xb78); }
-static long eagl_gen_missing_b80(void *context) { return eagl_missing(context, 0xb80); }
-static long eagl_gen_missing_b88(void *context) { return eagl_missing(context, 0xb88); }
-static long eagl_gen_missing_b98(void *context) { return eagl_missing(context, 0xb98); }
-static long eagl_gen_missing_ba0(void *context) { return eagl_missing(context, 0xba0); }
-static long eagl_gen_missing_ba8(void *context) { return eagl_missing(context, 0xba8); }
-static long eagl_gen_missing_bb0(void *context) { return eagl_missing(context, 0xbb0); }
-static long eagl_gen_missing_bb8(void *context) { return eagl_missing(context, 0xbb8); }
-static long eagl_gen_missing_bc0(void *context) { return eagl_missing(context, 0xbc0); }
-static long eagl_gen_missing_bc8(void *context) { return eagl_missing(context, 0xbc8); }
-static long eagl_gen_missing_bd0(void *context) { return eagl_missing(context, 0xbd0); }
-static long eagl_gen_missing_bd8(void *context) { return eagl_missing(context, 0xbd8); }
-static long eagl_gen_missing_bf0(void *context) { return eagl_missing(context, 0xbf0); }
-static long eagl_gen_missing_c08(void *context) { return eagl_missing(context, 0xc08); }
-static long eagl_gen_missing_c10(void *context) { return eagl_missing(context, 0xc10); }
-static long eagl_gen_missing_c18(void *context) { return eagl_missing(context, 0xc18); }
-static long eagl_gen_missing_c20(void *context) { return eagl_missing(context, 0xc20); }
-static long eagl_gen_missing_c28(void *context) { return eagl_missing(context, 0xc28); }
-static long eagl_gen_missing_c30(void *context) { return eagl_missing(context, 0xc30); }
-static long eagl_gen_missing_c38(void *context) { return eagl_missing(context, 0xc38); }
-static long eagl_gen_missing_c40(void *context) { return eagl_missing(context, 0xc40); }
-static long eagl_gen_missing_c48(void *context) { return eagl_missing(context, 0xc48); }
-static long eagl_gen_missing_c50(void *context) { return eagl_missing(context, 0xc50); }
-static long eagl_gen_missing_c58(void *context) { return eagl_missing(context, 0xc58); }
-static long eagl_gen_missing_c60(void *context) { return eagl_missing(context, 0xc60); }
-static long eagl_gen_missing_c68(void *context) { return eagl_missing(context, 0xc68); }
-static long eagl_gen_missing_c70(void *context) { return eagl_missing(context, 0xc70); }
-static long eagl_gen_missing_c78(void *context) { return eagl_missing(context, 0xc78); }
-static long eagl_gen_missing_c80(void *context) { return eagl_missing(context, 0xc80); }
-static long eagl_gen_missing_c88(void *context) { return eagl_missing(context, 0xc88); }
-static long eagl_gen_missing_c90(void *context) { return eagl_missing(context, 0xc90); }
-static long eagl_gen_missing_c98(void *context) { return eagl_missing(context, 0xc98); }
-static long eagl_gen_missing_ca0(void *context) { return eagl_missing(context, 0xca0); }
-static long eagl_gen_missing_ca8(void *context) { return eagl_missing(context, 0xca8); }
-static long eagl_gen_missing_cb8(void *context) { return eagl_missing(context, 0xcb8); }
-static long eagl_gen_missing_cc0(void *context) { return eagl_missing(context, 0xcc0); }
-static long eagl_gen_missing_cc8(void *context) { return eagl_missing(context, 0xcc8); }
-static long eagl_gen_missing_cd0(void *context) { return eagl_missing(context, 0xcd0); }
-static long eagl_gen_missing_cd8(void *context) { return eagl_missing(context, 0xcd8); }
-static long eagl_gen_missing_ce0(void *context) { return eagl_missing(context, 0xce0); }
-static long eagl_gen_missing_ce8(void *context) { return eagl_missing(context, 0xce8); }
-static long eagl_gen_missing_cf0(void *context) { return eagl_missing(context, 0xcf0); }
-static long eagl_gen_missing_cf8(void *context) { return eagl_missing(context, 0xcf8); }
-static long eagl_gen_missing_d00(void *context) { return eagl_missing(context, 0xd00); }
-static long eagl_gen_missing_d08(void *context) { return eagl_missing(context, 0xd08); }
-static long eagl_gen_missing_d10(void *context) { return eagl_missing(context, 0xd10); }
-static long eagl_gen_missing_d18(void *context) { return eagl_missing(context, 0xd18); }
-static long eagl_gen_missing_d20(void *context) { return eagl_missing(context, 0xd20); }
-static long eagl_gen_missing_d28(void *context) { return eagl_missing(context, 0xd28); }
-static long eagl_gen_missing_d30(void *context) { return eagl_missing(context, 0xd30); }
-static long eagl_gen_missing_d38(void *context) { return eagl_missing(context, 0xd38); }
-static long eagl_gen_missing_d40(void *context) { return eagl_missing(context, 0xd40); }
-static long eagl_gen_missing_d48(void *context) { return eagl_missing(context, 0xd48); }
-static long eagl_gen_missing_d50(void *context) { return eagl_missing(context, 0xd50); }
-static long eagl_gen_missing_d58(void *context) { return eagl_missing(context, 0xd58); }
-static long eagl_gen_missing_d60(void *context) { return eagl_missing(context, 0xd60); }
-static long eagl_gen_missing_d68(void *context) { return eagl_missing(context, 0xd68); }
-static long eagl_gen_missing_d70(void *context) { return eagl_missing(context, 0xd70); }
-static long eagl_gen_missing_d78(void *context) { return eagl_missing(context, 0xd78); }
-static long eagl_gen_missing_d80(void *context) { return eagl_missing(context, 0xd80); }
-static long eagl_gen_missing_d88(void *context) { return eagl_missing(context, 0xd88); }
-static long eagl_gen_missing_d90(void *context) { return eagl_missing(context, 0xd90); }
-static long eagl_gen_missing_d98(void *context) { return eagl_missing(context, 0xd98); }
-static long eagl_gen_missing_da0(void *context) { return eagl_missing(context, 0xda0); }
-static long eagl_gen_missing_da8(void *context) { return eagl_missing(context, 0xda8); }
-static long eagl_gen_missing_db0(void *context) { return eagl_missing(context, 0xdb0); }
-static long eagl_gen_missing_de0(void *context) { return eagl_missing(context, 0xde0); }
-static long eagl_gen_missing_e08(void *context) { return eagl_missing(context, 0xe08); }
-static long eagl_gen_missing_e10(void *context) { return eagl_missing(context, 0xe10); }
-static long eagl_gen_missing_e18(void *context) { return eagl_missing(context, 0xe18); }
-static long eagl_gen_missing_e20(void *context) { return eagl_missing(context, 0xe20); }
-static long eagl_gen_missing_e28(void *context) { return eagl_missing(context, 0xe28); }
-static long eagl_gen_missing_e30(void *context) { return eagl_missing(context, 0xe30); }
-static long eagl_gen_missing_e38(void *context) { return eagl_missing(context, 0xe38); }
-static long eagl_gen_missing_e40(void *context) { return eagl_missing(context, 0xe40); }
-static long eagl_gen_missing_e48(void *context) { return eagl_missing(context, 0xe48); }
-static long eagl_gen_missing_e50(void *context) { return eagl_missing(context, 0xe50); }
-static long eagl_gen_missing_e68(void *context) { return eagl_missing(context, 0xe68); }
-static long eagl_gen_missing_e70(void *context) { return eagl_missing(context, 0xe70); }
-static long eagl_gen_missing_e78(void *context) { return eagl_missing(context, 0xe78); }
-static long eagl_gen_missing_ec0(void *context) { return eagl_missing(context, 0xec0); }
-static long eagl_gen_missing_ec8(void *context) { return eagl_missing(context, 0xec8); }
-static long eagl_gen_missing_ed0(void *context) { return eagl_missing(context, 0xed0); }
-static long eagl_gen_missing_ed8(void *context) { return eagl_missing(context, 0xed8); }
-static long eagl_gen_missing_ee0(void *context) { return eagl_missing(context, 0xee0); }
-static long eagl_gen_missing_ef0(void *context) { return eagl_missing(context, 0xef0); }
-static long eagl_gen_missing_ef8(void *context) { return eagl_missing(context, 0xef8); }
-static long eagl_gen_missing_f08(void *context) { return eagl_missing(context, 0xf08); }
-static long eagl_gen_missing_f10(void *context) { return eagl_missing(context, 0xf10); }
-static long eagl_gen_missing_f20(void *context) { return eagl_missing(context, 0xf20); }
-static long eagl_gen_missing_f28(void *context) { return eagl_missing(context, 0xf28); }
-static long eagl_gen_missing_f38(void *context) { return eagl_missing(context, 0xf38); }
-static long eagl_gen_missing_f40(void *context) { return eagl_missing(context, 0xf40); }
-static long eagl_gen_missing_f48(void *context) { return eagl_missing(context, 0xf48); }
-static long eagl_gen_missing_f58(void *context) { return eagl_missing(context, 0xf58); }
-static long eagl_gen_missing_f60(void *context) { return eagl_missing(context, 0xf60); }
-static long eagl_gen_missing_f70(void *context) { return eagl_missing(context, 0xf70); }
-static long eagl_gen_missing_f78(void *context) { return eagl_missing(context, 0xf78); }
-static long eagl_gen_missing_f88(void *context) { return eagl_missing(context, 0xf88); }
-static long eagl_gen_missing_f90(void *context) { return eagl_missing(context, 0xf90); }
-static long eagl_gen_missing_f98(void *context) { return eagl_missing(context, 0xf98); }
-static long eagl_gen_missing_fa0(void *context) { return eagl_missing(context, 0xfa0); }
-static long eagl_gen_missing_fa8(void *context) { return eagl_missing(context, 0xfa8); }
-static long eagl_gen_missing_fb0(void *context) { return eagl_missing(context, 0xfb0); }
-static long eagl_gen_missing_fb8(void *context) { return eagl_missing(context, 0xfb8); }
-static long eagl_gen_missing_fc8(void *context) { return eagl_missing(context, 0xfc8); }
-static long eagl_gen_missing_fd0(void *context) { return eagl_missing(context, 0xfd0); }
-static long eagl_gen_missing_fd8(void *context) { return eagl_missing(context, 0xfd8); }
-static long eagl_gen_missing_fe0(void *context) { return eagl_missing(context, 0xfe0); }
-static long eagl_gen_missing_fe8(void *context) { return eagl_missing(context, 0xfe8); }
-static long eagl_gen_missing_ff0(void *context) { return eagl_missing(context, 0xff0); }
-static long eagl_gen_missing_ff8(void *context) { return eagl_missing(context, 0xff8); }
-static long eagl_gen_missing_1018(void *context) { return eagl_missing(context, 0x1018); }
-static long eagl_gen_missing_1038(void *context) { return eagl_missing(context, 0x1038); }
-static long eagl_gen_missing_1040(void *context) { return eagl_missing(context, 0x1040); }
-static long eagl_gen_missing_1048(void *context) { return eagl_missing(context, 0x1048); }
-static long eagl_gen_missing_1050(void *context) { return eagl_missing(context, 0x1050); }
-static long eagl_gen_missing_1058(void *context) { return eagl_missing(context, 0x1058); }
-static long eagl_gen_missing_1060(void *context) { return eagl_missing(context, 0x1060); }
-static long eagl_gen_missing_1068(void *context) { return eagl_missing(context, 0x1068); }
-static long eagl_gen_missing_1070(void *context) { return eagl_missing(context, 0x1070); }
-static long eagl_gen_missing_1078(void *context) { return eagl_missing(context, 0x1078); }
-static long eagl_gen_missing_1080(void *context) { return eagl_missing(context, 0x1080); }
-static long eagl_gen_missing_1088(void *context) { return eagl_missing(context, 0x1088); }
-static long eagl_gen_missing_1090(void *context) { return eagl_missing(context, 0x1090); }
-static long eagl_gen_missing_1098(void *context) { return eagl_missing(context, 0x1098); }
-static long eagl_gen_missing_10a0(void *context) { return eagl_missing(context, 0x10a0); }
-static long eagl_gen_missing_10a8(void *context) { return eagl_missing(context, 0x10a8); }
-static long eagl_gen_missing_10b0(void *context) { return eagl_missing(context, 0x10b0); }
-static long eagl_gen_missing_10b8(void *context) { return eagl_missing(context, 0x10b8); }
-static long eagl_gen_missing_10c0(void *context) { return eagl_missing(context, 0x10c0); }
-static long eagl_gen_missing_10c8(void *context) { return eagl_missing(context, 0x10c8); }
-static long eagl_gen_missing_10d0(void *context) { return eagl_missing(context, 0x10d0); }
-static long eagl_gen_missing_10d8(void *context) { return eagl_missing(context, 0x10d8); }
-static long eagl_gen_missing_10e0(void *context) { return eagl_missing(context, 0x10e0); }
-static long eagl_gen_missing_10f8(void *context) { return eagl_missing(context, 0x10f8); }
-static long eagl_gen_missing_1100(void *context) { return eagl_missing(context, 0x1100); }
-static long eagl_gen_missing_1108(void *context) { return eagl_missing(context, 0x1108); }
-static long eagl_gen_missing_1110(void *context) { return eagl_missing(context, 0x1110); }
-static long eagl_gen_missing_1118(void *context) { return eagl_missing(context, 0x1118); }
-static long eagl_gen_missing_1120(void *context) { return eagl_missing(context, 0x1120); }
-static long eagl_gen_missing_1128(void *context) { return eagl_missing(context, 0x1128); }
-static long eagl_gen_missing_1130(void *context) { return eagl_missing(context, 0x1130); }
-static long eagl_gen_missing_1138(void *context) { return eagl_missing(context, 0x1138); }
-static long eagl_gen_missing_1140(void *context) { return eagl_missing(context, 0x1140); }
-static long eagl_gen_missing_1148(void *context) { return eagl_missing(context, 0x1148); }
-static long eagl_gen_missing_1150(void *context) { return eagl_missing(context, 0x1150); }
-static long eagl_gen_missing_1158(void *context) { return eagl_missing(context, 0x1158); }
-static long eagl_gen_missing_1160(void *context) { return eagl_missing(context, 0x1160); }
-static long eagl_gen_missing_1168(void *context) { return eagl_missing(context, 0x1168); }
-static long eagl_gen_missing_1170(void *context) { return eagl_missing(context, 0x1170); }
-static long eagl_gen_missing_1178(void *context) { return eagl_missing(context, 0x1178); }
-static long eagl_gen_missing_1180(void *context) { return eagl_missing(context, 0x1180); }
-static long eagl_gen_missing_1188(void *context) { return eagl_missing(context, 0x1188); }
-static long eagl_gen_missing_1190(void *context) { return eagl_missing(context, 0x1190); }
-static long eagl_gen_missing_1198(void *context) { return eagl_missing(context, 0x1198); }
-static long eagl_gen_missing_11a0(void *context) { return eagl_missing(context, 0x11a0); }
-static long eagl_gen_missing_11a8(void *context) { return eagl_missing(context, 0x11a8); }
-static long eagl_gen_missing_11b0(void *context) { return eagl_missing(context, 0x11b0); }
-static long eagl_gen_missing_11b8(void *context) { return eagl_missing(context, 0x11b8); }
-static long eagl_gen_missing_11c0(void *context) { return eagl_missing(context, 0x11c0); }
-static long eagl_gen_missing_11c8(void *context) { return eagl_missing(context, 0x11c8); }
-static long eagl_gen_missing_11d0(void *context) { return eagl_missing(context, 0x11d0); }
-static long eagl_gen_missing_11d8(void *context) { return eagl_missing(context, 0x11d8); }
-static long eagl_gen_missing_11e0(void *context) { return eagl_missing(context, 0x11e0); }
-static long eagl_gen_missing_11e8(void *context) { return eagl_missing(context, 0x11e8); }
-static long eagl_gen_missing_11f0(void *context) { return eagl_missing(context, 0x11f0); }
-static long eagl_gen_missing_11f8(void *context) { return eagl_missing(context, 0x11f8); }
-static long eagl_gen_missing_1200(void *context) { return eagl_missing(context, 0x1200); }
-static long eagl_gen_missing_1208(void *context) { return eagl_missing(context, 0x1208); }
-static long eagl_gen_missing_1210(void *context) { return eagl_missing(context, 0x1210); }
-static long eagl_gen_missing_1218(void *context) { return eagl_missing(context, 0x1218); }
-static long eagl_gen_missing_1220(void *context) { return eagl_missing(context, 0x1220); }
-static long eagl_gen_missing_1228(void *context) { return eagl_missing(context, 0x1228); }
-static long eagl_gen_missing_1230(void *context) { return eagl_missing(context, 0x1230); }
-static long eagl_gen_missing_1238(void *context) { return eagl_missing(context, 0x1238); }
-static long eagl_gen_missing_1240(void *context) { return eagl_missing(context, 0x1240); }
-static long eagl_gen_missing_1248(void *context) { return eagl_missing(context, 0x1248); }
-static long eagl_gen_missing_1250(void *context) { return eagl_missing(context, 0x1250); }
-static long eagl_gen_missing_1260(void *context) { return eagl_missing(context, 0x1260); }
-static long eagl_gen_missing_1268(void *context) { return eagl_missing(context, 0x1268); }
-static long eagl_gen_missing_1270(void *context) { return eagl_missing(context, 0x1270); }
-static long eagl_gen_missing_1278(void *context) { return eagl_missing(context, 0x1278); }
-static long eagl_gen_missing_1288(void *context) { return eagl_missing(context, 0x1288); }
-static long eagl_gen_missing_1370(void *context) { return eagl_missing(context, 0x1370); }
-static long eagl_gen_missing_1378(void *context) { return eagl_missing(context, 0x1378); }
-static long eagl_gen_missing_1380(void *context) { return eagl_missing(context, 0x1380); }
-static long eagl_gen_missing_1388(void *context) { return eagl_missing(context, 0x1388); }
-static long eagl_gen_missing_13d0(void *context) { return eagl_missing(context, 0x13d0); }
-static long eagl_gen_missing_1448(void *context) { return eagl_missing(context, 0x1448); }
-static long eagl_gen_missing_1470(void *context) { return eagl_missing(context, 0x1470); }
-static long eagl_gen_missing_14c0(void *context) { return eagl_missing(context, 0x14c0); }
-static long eagl_gen_missing_14c8(void *context) { return eagl_missing(context, 0x14c8); }
-static long eagl_gen_missing_1528(void *context) { return eagl_missing(context, 0x1528); }
-static long eagl_gen_missing_1538(void *context) { return eagl_missing(context, 0x1538); }
-static long eagl_gen_missing_1558(void *context) { return eagl_missing(context, 0x1558); }
-static long eagl_gen_missing_1560(void *context) { return eagl_missing(context, 0x1560); }
-static long eagl_gen_missing_1568(void *context) { return eagl_missing(context, 0x1568); }
-static long eagl_gen_missing_1570(void *context) { return eagl_missing(context, 0x1570); }
-static long eagl_gen_missing_1578(void *context) { return eagl_missing(context, 0x1578); }
-static long eagl_gen_missing_1580(void *context) { return eagl_missing(context, 0x1580); }
-static long eagl_gen_missing_1588(void *context) { return eagl_missing(context, 0x1588); }
-static long eagl_gen_missing_1598(void *context) { return eagl_missing(context, 0x1598); }
-static long eagl_gen_missing_15a8(void *context) { return eagl_missing(context, 0x15a8); }
-static long eagl_gen_missing_15b8(void *context) { return eagl_missing(context, 0x15b8); }
-static long eagl_gen_missing_15f0(void *context) { return eagl_missing(context, 0x15f0); }
-static long eagl_gen_missing_15f8(void *context) { return eagl_missing(context, 0x15f8); }
-static long eagl_gen_missing_1600(void *context) { return eagl_missing(context, 0x1600); }
-static long eagl_gen_missing_1608(void *context) { return eagl_missing(context, 0x1608); }
-static long eagl_gen_missing_1610(void *context) { return eagl_missing(context, 0x1610); }
-static long eagl_gen_missing_1618(void *context) { return eagl_missing(context, 0x1618); }
-static long eagl_gen_missing_1620(void *context) { return eagl_missing(context, 0x1620); }
-static long eagl_gen_missing_1628(void *context) { return eagl_missing(context, 0x1628); }
-static long eagl_gen_missing_1630(void *context) { return eagl_missing(context, 0x1630); }
-static long eagl_gen_missing_1638(void *context) { return eagl_missing(context, 0x1638); }
-static long eagl_gen_missing_1640(void *context) { return eagl_missing(context, 0x1640); }
-static long eagl_gen_missing_1648(void *context) { return eagl_missing(context, 0x1648); }
-static long eagl_gen_missing_1650(void *context) { return eagl_missing(context, 0x1650); }
-static long eagl_gen_missing_1660(void *context) { return eagl_missing(context, 0x1660); }
-static long eagl_gen_missing_1668(void *context) { return eagl_missing(context, 0x1668); }
-static long eagl_gen_missing_1670(void *context) { return eagl_missing(context, 0x1670); }
-static long eagl_gen_missing_1680(void *context) { return eagl_missing(context, 0x1680); }
-static long eagl_gen_missing_1688(void *context) { return eagl_missing(context, 0x1688); }
-static long eagl_gen_missing_1690(void *context) { return eagl_missing(context, 0x1690); }
-static long eagl_gen_missing_16a0(void *context) { return eagl_missing(context, 0x16a0); }
-static long eagl_gen_missing_16a8(void *context) { return eagl_missing(context, 0x16a8); }
-static long eagl_gen_missing_16b0(void *context) { return eagl_missing(context, 0x16b0); }
-static long eagl_gen_missing_16c0(void *context) { return eagl_missing(context, 0x16c0); }
-static long eagl_gen_missing_16c8(void *context) { return eagl_missing(context, 0x16c8); }
-static long eagl_gen_missing_16d0(void *context) { return eagl_missing(context, 0x16d0); }
-static long eagl_gen_missing_16d8(void *context) { return eagl_missing(context, 0x16d8); }
-static long eagl_gen_missing_1740(void *context) { return eagl_missing(context, 0x1740); }
-static long eagl_gen_missing_1750(void *context) { return eagl_missing(context, 0x1750); }
-static long eagl_gen_missing_1758(void *context) { return eagl_missing(context, 0x1758); }
-static long eagl_gen_missing_1760(void *context) { return eagl_missing(context, 0x1760); }
-static long eagl_gen_missing_1768(void *context) { return eagl_missing(context, 0x1768); }
-static long eagl_gen_missing_17b0(void *context) { return eagl_missing(context, 0x17b0); }
-static long eagl_gen_missing_17b8(void *context) { return eagl_missing(context, 0x17b8); }
-static long eagl_gen_missing_17c8(void *context) { return eagl_missing(context, 0x17c8); }
-static long eagl_gen_missing_17e8(void *context) { return eagl_missing(context, 0x17e8); }
-static long eagl_gen_missing_17f0(void *context) { return eagl_missing(context, 0x17f0); }
-static long eagl_gen_missing_17f8(void *context) { return eagl_missing(context, 0x17f8); }
-static long eagl_gen_missing_1800(void *context) { return eagl_missing(context, 0x1800); }
-static long eagl_gen_missing_1830(void *context) { return eagl_missing(context, 0x1830); }
-static long eagl_gen_missing_1898(void *context) { return eagl_missing(context, 0x1898); }
-static long eagl_gen_missing_18a0(void *context) { return eagl_missing(context, 0x18a0); }
-static long eagl_gen_missing_18a8(void *context) { return eagl_missing(context, 0x18a8); }
-static long eagl_gen_missing_18b0(void *context) { return eagl_missing(context, 0x18b0); }
-static long eagl_gen_missing_18b8(void *context) { return eagl_missing(context, 0x18b8); }
-static long eagl_gen_missing_18c8(void *context) { return eagl_missing(context, 0x18c8); }
-static long eagl_gen_missing_18d0(void *context) { return eagl_missing(context, 0x18d0); }
-static long eagl_gen_missing_18d8(void *context) { return eagl_missing(context, 0x18d8); }
-static long eagl_gen_missing_18f0(void *context) { return eagl_missing(context, 0x18f0); }
-static long eagl_gen_missing_1948(void *context) { return eagl_missing(context, 0x1948); }
-static long eagl_gen_missing_1950(void *context) { return eagl_missing(context, 0x1950); }
-static long eagl_gen_missing_1968(void *context) { return eagl_missing(context, 0x1968); }
-static long eagl_gen_missing_1970(void *context) { return eagl_missing(context, 0x1970); }
-static long eagl_gen_missing_1af8(void *context) { return eagl_missing(context, 0x1af8); }
-static long eagl_gen_missing_1b00(void *context) { return eagl_missing(context, 0x1b00); }
-static long eagl_gen_missing_1b08(void *context) { return eagl_missing(context, 0x1b08); }
-static long eagl_gen_missing_1b10(void *context) { return eagl_missing(context, 0x1b10); }
-static long eagl_gen_missing_1b18(void *context) { return eagl_missing(context, 0x1b18); }
-static long eagl_gen_missing_1b20(void *context) { return eagl_missing(context, 0x1b20); }
-static long eagl_gen_missing_1b28(void *context) { return eagl_missing(context, 0x1b28); }
-static long eagl_gen_missing_1b30(void *context) { return eagl_missing(context, 0x1b30); }
-static long eagl_gen_missing_1b38(void *context) { return eagl_missing(context, 0x1b38); }
-static long eagl_gen_missing_1b40(void *context) { return eagl_missing(context, 0x1b40); }
-static long eagl_gen_missing_1b48(void *context) { return eagl_missing(context, 0x1b48); }
-static long eagl_gen_missing_1b50(void *context) { return eagl_missing(context, 0x1b50); }
-static long eagl_gen_missing_1b80(void *context) { return eagl_missing(context, 0x1b80); }
-static long eagl_gen_missing_1b88(void *context) { return eagl_missing(context, 0x1b88); }
-static long eagl_gen_missing_1b90(void *context) { return eagl_missing(context, 0x1b90); }
-static long eagl_gen_missing_1b98(void *context) { return eagl_missing(context, 0x1b98); }
-static long eagl_gen_missing_1ba0(void *context) { return eagl_missing(context, 0x1ba0); }
-static long eagl_gen_missing_1ba8(void *context) { return eagl_missing(context, 0x1ba8); }
-static long eagl_gen_missing_1bb0(void *context) { return eagl_missing(context, 0x1bb0); }
-static long eagl_gen_missing_1bb8(void *context) { return eagl_missing(context, 0x1bb8); }
-static long eagl_gen_missing_1bd0(void *context) { return eagl_missing(context, 0x1bd0); }
-static long eagl_gen_missing_1bd8(void *context) { return eagl_missing(context, 0x1bd8); }
-static long eagl_gen_missing_1be0(void *context) { return eagl_missing(context, 0x1be0); }
-static long eagl_gen_missing_1be8(void *context) { return eagl_missing(context, 0x1be8); }
-static long eagl_gen_missing_1bf0(void *context) { return eagl_missing(context, 0x1bf0); }
-static long eagl_gen_missing_1bf8(void *context) { return eagl_missing(context, 0x1bf8); }
-static long eagl_gen_missing_1c00(void *context) { return eagl_missing(context, 0x1c00); }
-static long eagl_gen_missing_1c08(void *context) { return eagl_missing(context, 0x1c08); }
-static long eagl_gen_missing_1c10(void *context) { return eagl_missing(context, 0x1c10); }
-static long eagl_gen_missing_1c18(void *context) { return eagl_missing(context, 0x1c18); }
-static long eagl_gen_missing_1c20(void *context) { return eagl_missing(context, 0x1c20); }
-static long eagl_gen_missing_1c28(void *context) { return eagl_missing(context, 0x1c28); }
-static long eagl_gen_missing_1c30(void *context) { return eagl_missing(context, 0x1c30); }
-static long eagl_gen_missing_1c38(void *context) { return eagl_missing(context, 0x1c38); }
-static long eagl_gen_missing_1c40(void *context) { return eagl_missing(context, 0x1c40); }
-static long eagl_gen_missing_1c78(void *context) { return eagl_missing(context, 0x1c78); }
-static long eagl_gen_missing_1c80(void *context) { return eagl_missing(context, 0x1c80); }
-static long eagl_gen_missing_1c88(void *context) { return eagl_missing(context, 0x1c88); }
-static long eagl_gen_missing_1c90(void *context) { return eagl_missing(context, 0x1c90); }
-static long eagl_gen_missing_1c98(void *context) { return eagl_missing(context, 0x1c98); }
-static long eagl_gen_missing_1ca0(void *context) { return eagl_missing(context, 0x1ca0); }
-static long eagl_gen_missing_1ca8(void *context) { return eagl_missing(context, 0x1ca8); }
-static long eagl_gen_missing_1cb0(void *context) { return eagl_missing(context, 0x1cb0); }
-static long eagl_gen_missing_1cb8(void *context) { return eagl_missing(context, 0x1cb8); }
-static long eagl_gen_missing_1cc0(void *context) { return eagl_missing(context, 0x1cc0); }
-static long eagl_gen_missing_1cc8(void *context) { return eagl_missing(context, 0x1cc8); }
-static long eagl_gen_missing_1cd0(void *context) { return eagl_missing(context, 0x1cd0); }
-static long eagl_gen_missing_1cd8(void *context) { return eagl_missing(context, 0x1cd8); }
-static long eagl_gen_missing_1ce0(void *context) { return eagl_missing(context, 0x1ce0); }
-static long eagl_gen_missing_1ce8(void *context) { return eagl_missing(context, 0x1ce8); }
-static long eagl_gen_missing_1cf0(void *context) { return eagl_missing(context, 0x1cf0); }
-static long eagl_gen_missing_1cf8(void *context) { return eagl_missing(context, 0x1cf8); }
-static long eagl_gen_missing_1d00(void *context) { return eagl_missing(context, 0x1d00); }
-static long eagl_gen_missing_1d08(void *context) { return eagl_missing(context, 0x1d08); }
-static long eagl_gen_missing_1d10(void *context) { return eagl_missing(context, 0x1d10); }
-static long eagl_gen_missing_1d18(void *context) { return eagl_missing(context, 0x1d18); }
-static long eagl_gen_missing_1d20(void *context) { return eagl_missing(context, 0x1d20); }
-static long eagl_gen_missing_1d28(void *context) { return eagl_missing(context, 0x1d28); }
-static long eagl_gen_missing_1d30(void *context) { return eagl_missing(context, 0x1d30); }
-static long eagl_gen_missing_1d38(void *context) { return eagl_missing(context, 0x1d38); }
-static long eagl_gen_missing_1d40(void *context) { return eagl_missing(context, 0x1d40); }
-static long eagl_gen_missing_1d48(void *context) { return eagl_missing(context, 0x1d48); }
-static long eagl_gen_missing_1d50(void *context) { return eagl_missing(context, 0x1d50); }
-static long eagl_gen_missing_1d58(void *context) { return eagl_missing(context, 0x1d58); }
-static long eagl_gen_missing_1d60(void *context) { return eagl_missing(context, 0x1d60); }
-static long eagl_gen_missing_1d68(void *context) { return eagl_missing(context, 0x1d68); }
-static long eagl_gen_missing_1d70(void *context) { return eagl_missing(context, 0x1d70); }
-static long eagl_gen_missing_1d78(void *context) { return eagl_missing(context, 0x1d78); }
-static long eagl_gen_missing_1d80(void *context) { return eagl_missing(context, 0x1d80); }
-static long eagl_gen_missing_1d88(void *context) { return eagl_missing(context, 0x1d88); }
-static long eagl_gen_missing_1d90(void *context) { return eagl_missing(context, 0x1d90); }
-static long eagl_gen_missing_1d98(void *context) { return eagl_missing(context, 0x1d98); }
-static long eagl_gen_missing_1da0(void *context) { return eagl_missing(context, 0x1da0); }
-static long eagl_gen_missing_1da8(void *context) { return eagl_missing(context, 0x1da8); }
-static long eagl_gen_missing_1db0(void *context) { return eagl_missing(context, 0x1db0); }
-static long eagl_gen_missing_1db8(void *context) { return eagl_missing(context, 0x1db8); }
-static long eagl_gen_missing_1dc0(void *context) { return eagl_missing(context, 0x1dc0); }
-static long eagl_gen_missing_1dc8(void *context) { return eagl_missing(context, 0x1dc8); }
-static long eagl_gen_missing_1dd0(void *context) { return eagl_missing(context, 0x1dd0); }
-static long eagl_gen_missing_1dd8(void *context) { return eagl_missing(context, 0x1dd8); }
-static long eagl_gen_missing_1de0(void *context) { return eagl_missing(context, 0x1de0); }
-static long eagl_gen_missing_1de8(void *context) { return eagl_missing(context, 0x1de8); }
-static long eagl_gen_missing_1df0(void *context) { return eagl_missing(context, 0x1df0); }
-static long eagl_gen_missing_1df8(void *context) { return eagl_missing(context, 0x1df8); }
-static long eagl_gen_missing_1e00(void *context) { return eagl_missing(context, 0x1e00); }
-static long eagl_gen_missing_1e08(void *context) { return eagl_missing(context, 0x1e08); }
-static long eagl_gen_missing_1e10(void *context) { return eagl_missing(context, 0x1e10); }
-static long eagl_gen_missing_1e18(void *context) { return eagl_missing(context, 0x1e18); }
-static long eagl_gen_missing_1e20(void *context) { return eagl_missing(context, 0x1e20); }
-static long eagl_gen_missing_1e28(void *context) { return eagl_missing(context, 0x1e28); }
-static long eagl_gen_missing_1e30(void *context) { return eagl_missing(context, 0x1e30); }
-static long eagl_gen_missing_1e38(void *context) { return eagl_missing(context, 0x1e38); }
-static long eagl_gen_missing_1e40(void *context) { return eagl_missing(context, 0x1e40); }
-static long eagl_gen_missing_2038(void *context) { return eagl_missing(context, 0x2038); }
-static long eagl_gen_missing_2050(void *context) { return eagl_missing(context, 0x2050); }
-static long eagl_gen_missing_2058(void *context) { return eagl_missing(context, 0x2058); }
-static long eagl_gen_missing_2060(void *context) { return eagl_missing(context, 0x2060); }
-static long eagl_gen_missing_2068(void *context) { return eagl_missing(context, 0x2068); }
-static long eagl_gen_missing_2070(void *context) { return eagl_missing(context, 0x2070); }
-static long eagl_gen_missing_2078(void *context) { return eagl_missing(context, 0x2078); }
-static long eagl_gen_missing_2080(void *context) { return eagl_missing(context, 0x2080); }
-static long eagl_gen_missing_2088(void *context) { return eagl_missing(context, 0x2088); }
-static long eagl_gen_missing_2090(void *context) { return eagl_missing(context, 0x2090); }
-static long eagl_gen_missing_2098(void *context) { return eagl_missing(context, 0x2098); }
-static long eagl_gen_missing_20a0(void *context) { return eagl_missing(context, 0x20a0); }
-static long eagl_gen_missing_20a8(void *context) { return eagl_missing(context, 0x20a8); }
-static long eagl_gen_missing_20b0(void *context) { return eagl_missing(context, 0x20b0); }
-static long eagl_gen_missing_20b8(void *context) { return eagl_missing(context, 0x20b8); }
-static long eagl_gen_missing_20c0(void *context) { return eagl_missing(context, 0x20c0); }
-static long eagl_gen_missing_20c8(void *context) { return eagl_missing(context, 0x20c8); }
-static long eagl_gen_missing_20d0(void *context) { return eagl_missing(context, 0x20d0); }
-static long eagl_gen_missing_20d8(void *context) { return eagl_missing(context, 0x20d8); }
-static long eagl_gen_missing_20e0(void *context) { return eagl_missing(context, 0x20e0); }
-static long eagl_gen_missing_20e8(void *context) { return eagl_missing(context, 0x20e8); }
-static long eagl_gen_missing_20f0(void *context) { return eagl_missing(context, 0x20f0); }
-static long eagl_gen_missing_20f8(void *context) { return eagl_missing(context, 0x20f8); }
-static long eagl_gen_missing_2100(void *context) { return eagl_missing(context, 0x2100); }
-static long eagl_gen_missing_2108(void *context) { return eagl_missing(context, 0x2108); }
-static long eagl_gen_missing_2110(void *context) { return eagl_missing(context, 0x2110); }
-static long eagl_gen_missing_2118(void *context) { return eagl_missing(context, 0x2118); }
-static long eagl_gen_missing_2120(void *context) { return eagl_missing(context, 0x2120); }
-static long eagl_gen_missing_2128(void *context) { return eagl_missing(context, 0x2128); }
-static long eagl_gen_missing_2130(void *context) { return eagl_missing(context, 0x2130); }
-static long eagl_gen_missing_2138(void *context) { return eagl_missing(context, 0x2138); }
-static long eagl_gen_missing_2140(void *context) { return eagl_missing(context, 0x2140); }
-static long eagl_gen_missing_2148(void *context) { return eagl_missing(context, 0x2148); }
-static long eagl_gen_missing_2150(void *context) { return eagl_missing(context, 0x2150); }
-static long eagl_gen_missing_2158(void *context) { return eagl_missing(context, 0x2158); }
-static long eagl_gen_missing_2160(void *context) { return eagl_missing(context, 0x2160); }
-static long eagl_gen_missing_2168(void *context) { return eagl_missing(context, 0x2168); }
-static long eagl_gen_missing_2170(void *context) { return eagl_missing(context, 0x2170); }
-static long eagl_gen_missing_2178(void *context) { return eagl_missing(context, 0x2178); }
-static long eagl_gen_missing_2180(void *context) { return eagl_missing(context, 0x2180); }
-static long eagl_gen_missing_2188(void *context) { return eagl_missing(context, 0x2188); }
-static long eagl_gen_missing_2190(void *context) { return eagl_missing(context, 0x2190); }
-static long eagl_gen_missing_2198(void *context) { return eagl_missing(context, 0x2198); }
-static long eagl_gen_missing_21a0(void *context) { return eagl_missing(context, 0x21a0); }
-static long eagl_gen_missing_21a8(void *context) { return eagl_missing(context, 0x21a8); }
-static long eagl_gen_missing_21b0(void *context) { return eagl_missing(context, 0x21b0); }
-static long eagl_gen_missing_21b8(void *context) { return eagl_missing(context, 0x21b8); }
-static long eagl_gen_missing_21c0(void *context) { return eagl_missing(context, 0x21c0); }
-static long eagl_gen_missing_21c8(void *context) { return eagl_missing(context, 0x21c8); }
-static long eagl_gen_missing_21d0(void *context) { return eagl_missing(context, 0x21d0); }
-static long eagl_gen_missing_21d8(void *context) { return eagl_missing(context, 0x21d8); }
-static long eagl_gen_missing_21e0(void *context) { return eagl_missing(context, 0x21e0); }
-static long eagl_gen_missing_21e8(void *context) { return eagl_missing(context, 0x21e8); }
-static long eagl_gen_missing_21f0(void *context) { return eagl_missing(context, 0x21f0); }
-static long eagl_gen_missing_21f8(void *context) { return eagl_missing(context, 0x21f8); }
+static long eagl_gen_missing_8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8, a0, a1, a2, a3); }
+static long eagl_gen_missing_18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18, a0, a1, a2, a3); }
+static long eagl_gen_missing_20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20, a0, a1, a2, a3); }
+static long eagl_gen_missing_28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x28, a0, a1, a2, a3); }
+static long eagl_gen_missing_38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x38, a0, a1, a2, a3); }
+static long eagl_gen_missing_48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x48, a0, a1, a2, a3); }
+static long eagl_gen_missing_50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x50, a0, a1, a2, a3); }
+static long eagl_gen_missing_60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x60, a0, a1, a2, a3); }
+static long eagl_gen_missing_70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x70, a0, a1, a2, a3); }
+static long eagl_gen_missing_78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x78, a0, a1, a2, a3); }
+static long eagl_gen_missing_88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x88, a0, a1, a2, a3); }
+static long eagl_gen_missing_90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x90, a0, a1, a2, a3); }
+static long eagl_gen_missing_98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x98, a0, a1, a2, a3); }
+static long eagl_gen_missing_a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa0, a0, a1, a2, a3); }
+static long eagl_gen_missing_a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa8, a0, a1, a2, a3); }
+static long eagl_gen_missing_b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc0, a0, a1, a2, a3); }
+static long eagl_gen_missing_c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe0, a0, a1, a2, a3); }
+static long eagl_gen_missing_e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe8, a0, a1, a2, a3); }
+static long eagl_gen_missing_f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf8, a0, a1, a2, a3); }
+static long eagl_gen_missing_100(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x100, a0, a1, a2, a3); }
+static long eagl_gen_missing_108(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x108, a0, a1, a2, a3); }
+static long eagl_gen_missing_110(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x110, a0, a1, a2, a3); }
+static long eagl_gen_missing_118(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x118, a0, a1, a2, a3); }
+static long eagl_gen_missing_120(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x120, a0, a1, a2, a3); }
+static long eagl_gen_missing_128(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x128, a0, a1, a2, a3); }
+static long eagl_gen_missing_138(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x138, a0, a1, a2, a3); }
+static long eagl_gen_missing_140(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x140, a0, a1, a2, a3); }
+static long eagl_gen_missing_148(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x148, a0, a1, a2, a3); }
+static long eagl_gen_missing_150(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x150, a0, a1, a2, a3); }
+static long eagl_gen_missing_158(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x158, a0, a1, a2, a3); }
+static long eagl_gen_missing_168(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x168, a0, a1, a2, a3); }
+static long eagl_gen_missing_170(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x170, a0, a1, a2, a3); }
+static long eagl_gen_missing_178(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x178, a0, a1, a2, a3); }
+static long eagl_gen_missing_180(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x180, a0, a1, a2, a3); }
+static long eagl_gen_missing_188(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x188, a0, a1, a2, a3); }
+static long eagl_gen_missing_198(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x198, a0, a1, a2, a3); }
+static long eagl_gen_missing_1a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_218(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x218, a0, a1, a2, a3); }
+static long eagl_gen_missing_228(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x228, a0, a1, a2, a3); }
+static long eagl_gen_missing_230(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x230, a0, a1, a2, a3); }
+static long eagl_gen_missing_238(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x238, a0, a1, a2, a3); }
+static long eagl_gen_missing_240(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x240, a0, a1, a2, a3); }
+static long eagl_gen_missing_258(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x258, a0, a1, a2, a3); }
+static long eagl_gen_missing_260(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x260, a0, a1, a2, a3); }
+static long eagl_gen_missing_268(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x268, a0, a1, a2, a3); }
+static long eagl_gen_missing_270(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x270, a0, a1, a2, a3); }
+static long eagl_gen_missing_278(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x278, a0, a1, a2, a3); }
+static long eagl_gen_missing_280(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x280, a0, a1, a2, a3); }
+static long eagl_gen_missing_288(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x288, a0, a1, a2, a3); }
+static long eagl_gen_missing_290(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x290, a0, a1, a2, a3); }
+static long eagl_gen_missing_298(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x298, a0, a1, a2, a3); }
+static long eagl_gen_missing_2a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_2a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_2b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_2b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_2c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_2c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_2f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_2f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_308(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x308, a0, a1, a2, a3); }
+static long eagl_gen_missing_310(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x310, a0, a1, a2, a3); }
+static long eagl_gen_missing_328(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x328, a0, a1, a2, a3); }
+static long eagl_gen_missing_330(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x330, a0, a1, a2, a3); }
+static long eagl_gen_missing_358(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x358, a0, a1, a2, a3); }
+static long eagl_gen_missing_360(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x360, a0, a1, a2, a3); }
+static long eagl_gen_missing_368(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x368, a0, a1, a2, a3); }
+static long eagl_gen_missing_370(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x370, a0, a1, a2, a3); }
+static long eagl_gen_missing_380(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x380, a0, a1, a2, a3); }
+static long eagl_gen_missing_388(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x388, a0, a1, a2, a3); }
+static long eagl_gen_missing_390(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x390, a0, a1, a2, a3); }
+static long eagl_gen_missing_398(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x398, a0, a1, a2, a3); }
+static long eagl_gen_missing_3a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x3a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_3c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x3c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_3d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x3d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_3d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x3d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_410(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x410, a0, a1, a2, a3); }
+static long eagl_gen_missing_418(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x418, a0, a1, a2, a3); }
+static long eagl_gen_missing_420(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x420, a0, a1, a2, a3); }
+static long eagl_gen_missing_428(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x428, a0, a1, a2, a3); }
+static long eagl_gen_missing_430(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x430, a0, a1, a2, a3); }
+static long eagl_gen_missing_438(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x438, a0, a1, a2, a3); }
+static long eagl_gen_missing_440(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x440, a0, a1, a2, a3); }
+static long eagl_gen_missing_448(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x448, a0, a1, a2, a3); }
+static long eagl_gen_missing_450(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x450, a0, a1, a2, a3); }
+static long eagl_gen_missing_458(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x458, a0, a1, a2, a3); }
+static long eagl_gen_missing_460(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x460, a0, a1, a2, a3); }
+static long eagl_gen_missing_468(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x468, a0, a1, a2, a3); }
+static long eagl_gen_missing_470(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x470, a0, a1, a2, a3); }
+static long eagl_gen_missing_478(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x478, a0, a1, a2, a3); }
+static long eagl_gen_missing_488(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x488, a0, a1, a2, a3); }
+static long eagl_gen_missing_4a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_4b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_4c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_4d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_4d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_4e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_4f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x4f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_508(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x508, a0, a1, a2, a3); }
+static long eagl_gen_missing_518(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x518, a0, a1, a2, a3); }
+static long eagl_gen_missing_520(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x520, a0, a1, a2, a3); }
+static long eagl_gen_missing_528(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x528, a0, a1, a2, a3); }
+static long eagl_gen_missing_530(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x530, a0, a1, a2, a3); }
+static long eagl_gen_missing_538(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x538, a0, a1, a2, a3); }
+static long eagl_gen_missing_540(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x540, a0, a1, a2, a3); }
+static long eagl_gen_missing_548(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x548, a0, a1, a2, a3); }
+static long eagl_gen_missing_550(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x550, a0, a1, a2, a3); }
+static long eagl_gen_missing_568(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x568, a0, a1, a2, a3); }
+static long eagl_gen_missing_570(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x570, a0, a1, a2, a3); }
+static long eagl_gen_missing_580(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x580, a0, a1, a2, a3); }
+static long eagl_gen_missing_590(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x590, a0, a1, a2, a3); }
+static long eagl_gen_missing_598(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x598, a0, a1, a2, a3); }
+static long eagl_gen_missing_5a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_5b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_5d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_5e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_5f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x5f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_600(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x600, a0, a1, a2, a3); }
+static long eagl_gen_missing_608(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x608, a0, a1, a2, a3); }
+static long eagl_gen_missing_610(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x610, a0, a1, a2, a3); }
+static long eagl_gen_missing_618(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x618, a0, a1, a2, a3); }
+static long eagl_gen_missing_628(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x628, a0, a1, a2, a3); }
+static long eagl_gen_missing_630(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x630, a0, a1, a2, a3); }
+static long eagl_gen_missing_638(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x638, a0, a1, a2, a3); }
+static long eagl_gen_missing_648(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x648, a0, a1, a2, a3); }
+static long eagl_gen_missing_658(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x658, a0, a1, a2, a3); }
+static long eagl_gen_missing_660(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x660, a0, a1, a2, a3); }
+static long eagl_gen_missing_668(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x668, a0, a1, a2, a3); }
+static long eagl_gen_missing_678(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x678, a0, a1, a2, a3); }
+static long eagl_gen_missing_680(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x680, a0, a1, a2, a3); }
+static long eagl_gen_missing_688(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x688, a0, a1, a2, a3); }
+static long eagl_gen_missing_690(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x690, a0, a1, a2, a3); }
+static long eagl_gen_missing_6a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_6b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_6c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_6d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_6e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_6f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_6f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x6f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_700(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x700, a0, a1, a2, a3); }
+static long eagl_gen_missing_708(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x708, a0, a1, a2, a3); }
+static long eagl_gen_missing_710(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x710, a0, a1, a2, a3); }
+static long eagl_gen_missing_718(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x718, a0, a1, a2, a3); }
+static long eagl_gen_missing_720(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x720, a0, a1, a2, a3); }
+static long eagl_gen_missing_728(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x728, a0, a1, a2, a3); }
+static long eagl_gen_missing_730(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x730, a0, a1, a2, a3); }
+static long eagl_gen_missing_738(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x738, a0, a1, a2, a3); }
+static long eagl_gen_missing_740(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x740, a0, a1, a2, a3); }
+static long eagl_gen_missing_748(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x748, a0, a1, a2, a3); }
+static long eagl_gen_missing_750(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x750, a0, a1, a2, a3); }
+static long eagl_gen_missing_758(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x758, a0, a1, a2, a3); }
+static long eagl_gen_missing_760(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x760, a0, a1, a2, a3); }
+static long eagl_gen_missing_778(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x778, a0, a1, a2, a3); }
+static long eagl_gen_missing_780(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x780, a0, a1, a2, a3); }
+static long eagl_gen_missing_788(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x788, a0, a1, a2, a3); }
+static long eagl_gen_missing_790(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x790, a0, a1, a2, a3); }
+static long eagl_gen_missing_798(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x798, a0, a1, a2, a3); }
+static long eagl_gen_missing_7a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_7a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_7b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_7b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_7c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_7d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_7e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x7e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_810(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x810, a0, a1, a2, a3); }
+static long eagl_gen_missing_818(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x818, a0, a1, a2, a3); }
+static long eagl_gen_missing_820(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x820, a0, a1, a2, a3); }
+static long eagl_gen_missing_828(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x828, a0, a1, a2, a3); }
+static long eagl_gen_missing_830(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x830, a0, a1, a2, a3); }
+static long eagl_gen_missing_838(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x838, a0, a1, a2, a3); }
+static long eagl_gen_missing_840(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x840, a0, a1, a2, a3); }
+static long eagl_gen_missing_848(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x848, a0, a1, a2, a3); }
+static long eagl_gen_missing_850(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x850, a0, a1, a2, a3); }
+static long eagl_gen_missing_858(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x858, a0, a1, a2, a3); }
+static long eagl_gen_missing_860(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x860, a0, a1, a2, a3); }
+static long eagl_gen_missing_868(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x868, a0, a1, a2, a3); }
+static long eagl_gen_missing_870(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x870, a0, a1, a2, a3); }
+static long eagl_gen_missing_878(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x878, a0, a1, a2, a3); }
+static long eagl_gen_missing_880(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x880, a0, a1, a2, a3); }
+static long eagl_gen_missing_888(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x888, a0, a1, a2, a3); }
+static long eagl_gen_missing_890(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x890, a0, a1, a2, a3); }
+static long eagl_gen_missing_898(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x898, a0, a1, a2, a3); }
+static long eagl_gen_missing_8a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_8b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_8c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_8d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_8e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_8f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_8f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x8f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_900(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x900, a0, a1, a2, a3); }
+static long eagl_gen_missing_908(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x908, a0, a1, a2, a3); }
+static long eagl_gen_missing_938(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x938, a0, a1, a2, a3); }
+static long eagl_gen_missing_940(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x940, a0, a1, a2, a3); }
+static long eagl_gen_missing_948(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x948, a0, a1, a2, a3); }
+static long eagl_gen_missing_950(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x950, a0, a1, a2, a3); }
+static long eagl_gen_missing_958(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x958, a0, a1, a2, a3); }
+static long eagl_gen_missing_960(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x960, a0, a1, a2, a3); }
+static long eagl_gen_missing_968(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x968, a0, a1, a2, a3); }
+static long eagl_gen_missing_998(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x998, a0, a1, a2, a3); }
+static long eagl_gen_missing_9a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_9b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_9c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_9c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_9d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_9d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_9e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_9e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_9f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_9f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x9f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_a00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa00, a0, a1, a2, a3); }
+static long eagl_gen_missing_a08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa08, a0, a1, a2, a3); }
+static long eagl_gen_missing_a10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa10, a0, a1, a2, a3); }
+static long eagl_gen_missing_a18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa18, a0, a1, a2, a3); }
+static long eagl_gen_missing_a20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa20, a0, a1, a2, a3); }
+static long eagl_gen_missing_a28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa28, a0, a1, a2, a3); }
+static long eagl_gen_missing_a30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa30, a0, a1, a2, a3); }
+static long eagl_gen_missing_a38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa38, a0, a1, a2, a3); }
+static long eagl_gen_missing_a40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa40, a0, a1, a2, a3); }
+static long eagl_gen_missing_a48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa48, a0, a1, a2, a3); }
+static long eagl_gen_missing_a50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa50, a0, a1, a2, a3); }
+static long eagl_gen_missing_a58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa58, a0, a1, a2, a3); }
+static long eagl_gen_missing_a60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa60, a0, a1, a2, a3); }
+static long eagl_gen_missing_a68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa68, a0, a1, a2, a3); }
+static long eagl_gen_missing_a70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xa70, a0, a1, a2, a3); }
+static long eagl_gen_missing_aa0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xaa0, a0, a1, a2, a3); }
+static long eagl_gen_missing_aa8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xaa8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ac0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xac0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ac8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xac8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ad0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xad0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ad8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xad8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ae0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xae0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ae8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xae8, a0, a1, a2, a3); }
+static long eagl_gen_missing_af0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xaf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_af8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xaf8, a0, a1, a2, a3); }
+static long eagl_gen_missing_b00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb00, a0, a1, a2, a3); }
+static long eagl_gen_missing_b08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb08, a0, a1, a2, a3); }
+static long eagl_gen_missing_b10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb10, a0, a1, a2, a3); }
+static long eagl_gen_missing_b18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb18, a0, a1, a2, a3); }
+static long eagl_gen_missing_b20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb20, a0, a1, a2, a3); }
+static long eagl_gen_missing_b28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb28, a0, a1, a2, a3); }
+static long eagl_gen_missing_b30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb30, a0, a1, a2, a3); }
+static long eagl_gen_missing_b38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb38, a0, a1, a2, a3); }
+static long eagl_gen_missing_b40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb40, a0, a1, a2, a3); }
+static long eagl_gen_missing_b48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb48, a0, a1, a2, a3); }
+static long eagl_gen_missing_b50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb50, a0, a1, a2, a3); }
+static long eagl_gen_missing_b58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb58, a0, a1, a2, a3); }
+static long eagl_gen_missing_b60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb60, a0, a1, a2, a3); }
+static long eagl_gen_missing_b68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb68, a0, a1, a2, a3); }
+static long eagl_gen_missing_b70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb70, a0, a1, a2, a3); }
+static long eagl_gen_missing_b78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb78, a0, a1, a2, a3); }
+static long eagl_gen_missing_b80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb80, a0, a1, a2, a3); }
+static long eagl_gen_missing_b88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb88, a0, a1, a2, a3); }
+static long eagl_gen_missing_b98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xb98, a0, a1, a2, a3); }
+static long eagl_gen_missing_ba0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xba0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ba8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xba8, a0, a1, a2, a3); }
+static long eagl_gen_missing_bb0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_bb8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_bc0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbc0, a0, a1, a2, a3); }
+static long eagl_gen_missing_bc8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_bd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_bd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_bf0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xbf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_c08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc08, a0, a1, a2, a3); }
+static long eagl_gen_missing_c10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc10, a0, a1, a2, a3); }
+static long eagl_gen_missing_c18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc18, a0, a1, a2, a3); }
+static long eagl_gen_missing_c20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc20, a0, a1, a2, a3); }
+static long eagl_gen_missing_c28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc28, a0, a1, a2, a3); }
+static long eagl_gen_missing_c30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc30, a0, a1, a2, a3); }
+static long eagl_gen_missing_c38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc38, a0, a1, a2, a3); }
+static long eagl_gen_missing_c40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc40, a0, a1, a2, a3); }
+static long eagl_gen_missing_c48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc48, a0, a1, a2, a3); }
+static long eagl_gen_missing_c50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc50, a0, a1, a2, a3); }
+static long eagl_gen_missing_c58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc58, a0, a1, a2, a3); }
+static long eagl_gen_missing_c60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc60, a0, a1, a2, a3); }
+static long eagl_gen_missing_c68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc68, a0, a1, a2, a3); }
+static long eagl_gen_missing_c70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc70, a0, a1, a2, a3); }
+static long eagl_gen_missing_c78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc78, a0, a1, a2, a3); }
+static long eagl_gen_missing_c80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc80, a0, a1, a2, a3); }
+static long eagl_gen_missing_c88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc88, a0, a1, a2, a3); }
+static long eagl_gen_missing_c90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc90, a0, a1, a2, a3); }
+static long eagl_gen_missing_c98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xc98, a0, a1, a2, a3); }
+static long eagl_gen_missing_ca0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xca0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ca8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xca8, a0, a1, a2, a3); }
+static long eagl_gen_missing_cb8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_cc0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcc0, a0, a1, a2, a3); }
+static long eagl_gen_missing_cc8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_cd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_cd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ce0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xce0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ce8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xce8, a0, a1, a2, a3); }
+static long eagl_gen_missing_cf0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_cf8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xcf8, a0, a1, a2, a3); }
+static long eagl_gen_missing_d00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd00, a0, a1, a2, a3); }
+static long eagl_gen_missing_d08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd08, a0, a1, a2, a3); }
+static long eagl_gen_missing_d10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd10, a0, a1, a2, a3); }
+static long eagl_gen_missing_d18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd18, a0, a1, a2, a3); }
+static long eagl_gen_missing_d20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd20, a0, a1, a2, a3); }
+static long eagl_gen_missing_d28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd28, a0, a1, a2, a3); }
+static long eagl_gen_missing_d30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd30, a0, a1, a2, a3); }
+static long eagl_gen_missing_d38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd38, a0, a1, a2, a3); }
+static long eagl_gen_missing_d40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd40, a0, a1, a2, a3); }
+static long eagl_gen_missing_d48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd48, a0, a1, a2, a3); }
+static long eagl_gen_missing_d50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd50, a0, a1, a2, a3); }
+static long eagl_gen_missing_d58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd58, a0, a1, a2, a3); }
+static long eagl_gen_missing_d60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd60, a0, a1, a2, a3); }
+static long eagl_gen_missing_d68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd68, a0, a1, a2, a3); }
+static long eagl_gen_missing_d70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd70, a0, a1, a2, a3); }
+static long eagl_gen_missing_d78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd78, a0, a1, a2, a3); }
+static long eagl_gen_missing_d80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd80, a0, a1, a2, a3); }
+static long eagl_gen_missing_d88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd88, a0, a1, a2, a3); }
+static long eagl_gen_missing_d90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd90, a0, a1, a2, a3); }
+static long eagl_gen_missing_d98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xd98, a0, a1, a2, a3); }
+static long eagl_gen_missing_da0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xda0, a0, a1, a2, a3); }
+static long eagl_gen_missing_da8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xda8, a0, a1, a2, a3); }
+static long eagl_gen_missing_db0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xdb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_de0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xde0, a0, a1, a2, a3); }
+static long eagl_gen_missing_e08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe08, a0, a1, a2, a3); }
+static long eagl_gen_missing_e10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe10, a0, a1, a2, a3); }
+static long eagl_gen_missing_e18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe18, a0, a1, a2, a3); }
+static long eagl_gen_missing_e20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe20, a0, a1, a2, a3); }
+static long eagl_gen_missing_e28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe28, a0, a1, a2, a3); }
+static long eagl_gen_missing_e30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe30, a0, a1, a2, a3); }
+static long eagl_gen_missing_e38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe38, a0, a1, a2, a3); }
+static long eagl_gen_missing_e40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe40, a0, a1, a2, a3); }
+static long eagl_gen_missing_e48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe48, a0, a1, a2, a3); }
+static long eagl_gen_missing_e50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe50, a0, a1, a2, a3); }
+static long eagl_gen_missing_e68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe68, a0, a1, a2, a3); }
+static long eagl_gen_missing_e70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe70, a0, a1, a2, a3); }
+static long eagl_gen_missing_e78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xe78, a0, a1, a2, a3); }
+static long eagl_gen_missing_ec0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xec0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ec8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xec8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ed0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xed0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ed8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xed8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ee0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xee0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ef0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xef0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ef8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xef8, a0, a1, a2, a3); }
+static long eagl_gen_missing_f08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf08, a0, a1, a2, a3); }
+static long eagl_gen_missing_f10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf10, a0, a1, a2, a3); }
+static long eagl_gen_missing_f20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf20, a0, a1, a2, a3); }
+static long eagl_gen_missing_f28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf28, a0, a1, a2, a3); }
+static long eagl_gen_missing_f38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf38, a0, a1, a2, a3); }
+static long eagl_gen_missing_f40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf40, a0, a1, a2, a3); }
+static long eagl_gen_missing_f48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf48, a0, a1, a2, a3); }
+static long eagl_gen_missing_f58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf58, a0, a1, a2, a3); }
+static long eagl_gen_missing_f60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf60, a0, a1, a2, a3); }
+static long eagl_gen_missing_f70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf70, a0, a1, a2, a3); }
+static long eagl_gen_missing_f78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf78, a0, a1, a2, a3); }
+static long eagl_gen_missing_f88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf88, a0, a1, a2, a3); }
+static long eagl_gen_missing_f90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf90, a0, a1, a2, a3); }
+static long eagl_gen_missing_f98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xf98, a0, a1, a2, a3); }
+static long eagl_gen_missing_fa0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfa0, a0, a1, a2, a3); }
+static long eagl_gen_missing_fa8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfa8, a0, a1, a2, a3); }
+static long eagl_gen_missing_fb0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_fb8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_fc8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_fd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_fd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_fe0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfe0, a0, a1, a2, a3); }
+static long eagl_gen_missing_fe8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xfe8, a0, a1, a2, a3); }
+static long eagl_gen_missing_ff0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xff0, a0, a1, a2, a3); }
+static long eagl_gen_missing_ff8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0xff8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1018(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1018, a0, a1, a2, a3); }
+static long eagl_gen_missing_1038(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1038, a0, a1, a2, a3); }
+static long eagl_gen_missing_1040(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1040, a0, a1, a2, a3); }
+static long eagl_gen_missing_1048(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1048, a0, a1, a2, a3); }
+static long eagl_gen_missing_1050(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1050, a0, a1, a2, a3); }
+static long eagl_gen_missing_1058(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1058, a0, a1, a2, a3); }
+static long eagl_gen_missing_1060(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1060, a0, a1, a2, a3); }
+static long eagl_gen_missing_1068(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1068, a0, a1, a2, a3); }
+static long eagl_gen_missing_1070(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1070, a0, a1, a2, a3); }
+static long eagl_gen_missing_1078(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1078, a0, a1, a2, a3); }
+static long eagl_gen_missing_1080(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1080, a0, a1, a2, a3); }
+static long eagl_gen_missing_1088(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1088, a0, a1, a2, a3); }
+static long eagl_gen_missing_1090(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1090, a0, a1, a2, a3); }
+static long eagl_gen_missing_1098(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1098, a0, a1, a2, a3); }
+static long eagl_gen_missing_10a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_10a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_10b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_10b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_10c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_10c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_10d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_10d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_10e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_10f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x10f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1100(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1100, a0, a1, a2, a3); }
+static long eagl_gen_missing_1108(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1108, a0, a1, a2, a3); }
+static long eagl_gen_missing_1110(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1110, a0, a1, a2, a3); }
+static long eagl_gen_missing_1118(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1118, a0, a1, a2, a3); }
+static long eagl_gen_missing_1120(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1120, a0, a1, a2, a3); }
+static long eagl_gen_missing_1128(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1128, a0, a1, a2, a3); }
+static long eagl_gen_missing_1130(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1130, a0, a1, a2, a3); }
+static long eagl_gen_missing_1138(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1138, a0, a1, a2, a3); }
+static long eagl_gen_missing_1140(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1140, a0, a1, a2, a3); }
+static long eagl_gen_missing_1148(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1148, a0, a1, a2, a3); }
+static long eagl_gen_missing_1150(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1150, a0, a1, a2, a3); }
+static long eagl_gen_missing_1158(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1158, a0, a1, a2, a3); }
+static long eagl_gen_missing_1160(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1160, a0, a1, a2, a3); }
+static long eagl_gen_missing_1168(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1168, a0, a1, a2, a3); }
+static long eagl_gen_missing_1170(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1170, a0, a1, a2, a3); }
+static long eagl_gen_missing_1178(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1178, a0, a1, a2, a3); }
+static long eagl_gen_missing_1180(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1180, a0, a1, a2, a3); }
+static long eagl_gen_missing_1188(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1188, a0, a1, a2, a3); }
+static long eagl_gen_missing_1190(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1190, a0, a1, a2, a3); }
+static long eagl_gen_missing_1198(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1198, a0, a1, a2, a3); }
+static long eagl_gen_missing_11a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_11b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_11c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_11d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_11e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_11f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_11f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x11f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1200(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1200, a0, a1, a2, a3); }
+static long eagl_gen_missing_1208(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1208, a0, a1, a2, a3); }
+static long eagl_gen_missing_1210(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1210, a0, a1, a2, a3); }
+static long eagl_gen_missing_1218(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1218, a0, a1, a2, a3); }
+static long eagl_gen_missing_1220(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1220, a0, a1, a2, a3); }
+static long eagl_gen_missing_1228(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1228, a0, a1, a2, a3); }
+static long eagl_gen_missing_1230(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1230, a0, a1, a2, a3); }
+static long eagl_gen_missing_1238(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1238, a0, a1, a2, a3); }
+static long eagl_gen_missing_1240(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1240, a0, a1, a2, a3); }
+static long eagl_gen_missing_1248(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1248, a0, a1, a2, a3); }
+static long eagl_gen_missing_1250(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1250, a0, a1, a2, a3); }
+static long eagl_gen_missing_1260(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1260, a0, a1, a2, a3); }
+static long eagl_gen_missing_1268(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1268, a0, a1, a2, a3); }
+static long eagl_gen_missing_1270(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1270, a0, a1, a2, a3); }
+static long eagl_gen_missing_1278(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1278, a0, a1, a2, a3); }
+static long eagl_gen_missing_1288(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1288, a0, a1, a2, a3); }
+static long eagl_gen_missing_1370(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1370, a0, a1, a2, a3); }
+static long eagl_gen_missing_1378(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1378, a0, a1, a2, a3); }
+static long eagl_gen_missing_1380(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1380, a0, a1, a2, a3); }
+static long eagl_gen_missing_1388(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1388, a0, a1, a2, a3); }
+static long eagl_gen_missing_13d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x13d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1448(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1448, a0, a1, a2, a3); }
+static long eagl_gen_missing_1470(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1470, a0, a1, a2, a3); }
+static long eagl_gen_missing_14c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x14c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_14c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x14c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1528(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1528, a0, a1, a2, a3); }
+static long eagl_gen_missing_1538(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1538, a0, a1, a2, a3); }
+static long eagl_gen_missing_1558(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1558, a0, a1, a2, a3); }
+static long eagl_gen_missing_1560(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1560, a0, a1, a2, a3); }
+static long eagl_gen_missing_1568(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1568, a0, a1, a2, a3); }
+static long eagl_gen_missing_1570(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1570, a0, a1, a2, a3); }
+static long eagl_gen_missing_1578(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1578, a0, a1, a2, a3); }
+static long eagl_gen_missing_1580(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1580, a0, a1, a2, a3); }
+static long eagl_gen_missing_1588(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1588, a0, a1, a2, a3); }
+static long eagl_gen_missing_1598(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1598, a0, a1, a2, a3); }
+static long eagl_gen_missing_15a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x15a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_15b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x15b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_15f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x15f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_15f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x15f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1600(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1600, a0, a1, a2, a3); }
+static long eagl_gen_missing_1608(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1608, a0, a1, a2, a3); }
+static long eagl_gen_missing_1610(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1610, a0, a1, a2, a3); }
+static long eagl_gen_missing_1618(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1618, a0, a1, a2, a3); }
+static long eagl_gen_missing_1620(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1620, a0, a1, a2, a3); }
+static long eagl_gen_missing_1628(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1628, a0, a1, a2, a3); }
+static long eagl_gen_missing_1630(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1630, a0, a1, a2, a3); }
+static long eagl_gen_missing_1638(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1638, a0, a1, a2, a3); }
+static long eagl_gen_missing_1640(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1640, a0, a1, a2, a3); }
+static long eagl_gen_missing_1648(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1648, a0, a1, a2, a3); }
+static long eagl_gen_missing_1650(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1650, a0, a1, a2, a3); }
+static long eagl_gen_missing_1660(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1660, a0, a1, a2, a3); }
+static long eagl_gen_missing_1668(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1668, a0, a1, a2, a3); }
+static long eagl_gen_missing_1670(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1670, a0, a1, a2, a3); }
+static long eagl_gen_missing_1680(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1680, a0, a1, a2, a3); }
+static long eagl_gen_missing_1688(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1688, a0, a1, a2, a3); }
+static long eagl_gen_missing_1690(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1690, a0, a1, a2, a3); }
+static long eagl_gen_missing_16a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_16a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_16b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_16c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_16c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_16d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_16d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x16d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1740(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1740, a0, a1, a2, a3); }
+static long eagl_gen_missing_1750(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1750, a0, a1, a2, a3); }
+static long eagl_gen_missing_1758(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1758, a0, a1, a2, a3); }
+static long eagl_gen_missing_1760(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1760, a0, a1, a2, a3); }
+static long eagl_gen_missing_1768(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1768, a0, a1, a2, a3); }
+static long eagl_gen_missing_17b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_17b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_17c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_17e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_17f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_17f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x17f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1800(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1800, a0, a1, a2, a3); }
+static long eagl_gen_missing_1830(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1830, a0, a1, a2, a3); }
+static long eagl_gen_missing_1898(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1898, a0, a1, a2, a3); }
+static long eagl_gen_missing_18a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_18a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_18b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_18b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_18c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_18d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_18d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_18f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x18f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1948(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1948, a0, a1, a2, a3); }
+static long eagl_gen_missing_1950(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1950, a0, a1, a2, a3); }
+static long eagl_gen_missing_1968(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1968, a0, a1, a2, a3); }
+static long eagl_gen_missing_1970(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1970, a0, a1, a2, a3); }
+static long eagl_gen_missing_1af8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1af8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b00, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b08, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b10, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b18, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b20, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b28, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b30, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b38, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b40, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b48, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b50, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b80, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b88, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b90, a0, a1, a2, a3); }
+static long eagl_gen_missing_1b98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1b98, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ba0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ba0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ba8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ba8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bb0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bb8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1be0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1be0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1be8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1be8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bf0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1bf8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1bf8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c00, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c08, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c10, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c18, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c20, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c28, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c30, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c38, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c40, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c78, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c80, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c88, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c90, a0, a1, a2, a3); }
+static long eagl_gen_missing_1c98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1c98, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ca0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ca0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ca8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ca8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cb0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cb0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cb8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cb8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cc0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cc0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cc8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ce0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ce0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1ce8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1ce8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cf0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cf0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1cf8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1cf8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d00, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d08, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d10, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d18, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d20, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d28, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d30, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d38, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d40, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d48(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d48, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d50(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d50, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d58(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d58, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d60(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d60, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d68(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d68, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d70(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d70, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d78(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d78, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d80(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d80, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d88(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d88, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d90(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d90, a0, a1, a2, a3); }
+static long eagl_gen_missing_1d98(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1d98, a0, a1, a2, a3); }
+static long eagl_gen_missing_1da0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1da0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1da8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1da8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1db0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1db0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1db8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1db8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1dc0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1dc0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1dc8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1dc8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1dd0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1dd0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1dd8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1dd8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1de0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1de0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1de8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1de8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1df0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1df0, a0, a1, a2, a3); }
+static long eagl_gen_missing_1df8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1df8, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e00(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e00, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e08(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e08, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e10(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e10, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e18(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e18, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e20(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e20, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e28(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e28, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e30(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e30, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e38(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e38, a0, a1, a2, a3); }
+static long eagl_gen_missing_1e40(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x1e40, a0, a1, a2, a3); }
+static long eagl_gen_missing_2038(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2038, a0, a1, a2, a3); }
+static long eagl_gen_missing_2050(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2050, a0, a1, a2, a3); }
+static long eagl_gen_missing_2058(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2058, a0, a1, a2, a3); }
+static long eagl_gen_missing_2060(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2060, a0, a1, a2, a3); }
+static long eagl_gen_missing_2068(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2068, a0, a1, a2, a3); }
+static long eagl_gen_missing_2070(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2070, a0, a1, a2, a3); }
+static long eagl_gen_missing_2078(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2078, a0, a1, a2, a3); }
+static long eagl_gen_missing_2080(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2080, a0, a1, a2, a3); }
+static long eagl_gen_missing_2088(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2088, a0, a1, a2, a3); }
+static long eagl_gen_missing_2090(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2090, a0, a1, a2, a3); }
+static long eagl_gen_missing_2098(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2098, a0, a1, a2, a3); }
+static long eagl_gen_missing_20a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_20b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_20c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_20d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_20e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_20f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_20f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x20f8, a0, a1, a2, a3); }
+static long eagl_gen_missing_2100(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2100, a0, a1, a2, a3); }
+static long eagl_gen_missing_2108(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2108, a0, a1, a2, a3); }
+static long eagl_gen_missing_2110(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2110, a0, a1, a2, a3); }
+static long eagl_gen_missing_2118(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2118, a0, a1, a2, a3); }
+static long eagl_gen_missing_2120(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2120, a0, a1, a2, a3); }
+static long eagl_gen_missing_2128(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2128, a0, a1, a2, a3); }
+static long eagl_gen_missing_2130(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2130, a0, a1, a2, a3); }
+static long eagl_gen_missing_2138(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2138, a0, a1, a2, a3); }
+static long eagl_gen_missing_2140(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2140, a0, a1, a2, a3); }
+static long eagl_gen_missing_2148(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2148, a0, a1, a2, a3); }
+static long eagl_gen_missing_2150(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2150, a0, a1, a2, a3); }
+static long eagl_gen_missing_2158(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2158, a0, a1, a2, a3); }
+static long eagl_gen_missing_2160(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2160, a0, a1, a2, a3); }
+static long eagl_gen_missing_2168(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2168, a0, a1, a2, a3); }
+static long eagl_gen_missing_2170(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2170, a0, a1, a2, a3); }
+static long eagl_gen_missing_2178(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2178, a0, a1, a2, a3); }
+static long eagl_gen_missing_2180(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2180, a0, a1, a2, a3); }
+static long eagl_gen_missing_2188(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2188, a0, a1, a2, a3); }
+static long eagl_gen_missing_2190(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2190, a0, a1, a2, a3); }
+static long eagl_gen_missing_2198(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x2198, a0, a1, a2, a3); }
+static long eagl_gen_missing_21a0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21a0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21a8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21a8, a0, a1, a2, a3); }
+static long eagl_gen_missing_21b0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21b0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21b8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21b8, a0, a1, a2, a3); }
+static long eagl_gen_missing_21c0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21c0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21c8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21c8, a0, a1, a2, a3); }
+static long eagl_gen_missing_21d0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21d0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21d8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21d8, a0, a1, a2, a3); }
+static long eagl_gen_missing_21e0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21e0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21e8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21e8, a0, a1, a2, a3); }
+static long eagl_gen_missing_21f0(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21f0, a0, a1, a2, a3); }
+static long eagl_gen_missing_21f8(unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3) { return eagl_missing_raw(0x21f8, a0, a1, a2, a3); }
 
 #define EAGL_TABLE_SIZE 0x2200
 

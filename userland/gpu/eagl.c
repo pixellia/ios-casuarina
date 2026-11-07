@@ -144,6 +144,7 @@ static void eagl_trace_floats(const float *values, int count);
 static void eagl_enter(struct eagl *e, unsigned offset);
 static void eagl_leave(struct eagl *e, unsigned offset);
 static long eagl_missing(void *context, unsigned offset);
+static long eagl_missing_raw(unsigned offset, unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3);
 #define EAGL_ENTER(context, offset)     eagl_enter(context, offset)
 #define EAGL_LEAVE(context, offset)     eagl_leave(context, offset)
 
@@ -421,17 +422,24 @@ eagl_leave(struct eagl *e, unsigned offset)
 	}
 }
 
-/* An entry the library has no function for: say so, once an entry. */
+/*
+ * An entry the library has no function for: say so, once an entry. (What the caller passes is not known: not
+ * necessarily our context, so nothing here touches it; the first four arguments are written down.)
+ */
+static long
+eagl_missing_raw(unsigned offset, unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3)
+{
+	if (slot_calls[offset / 8]++ == 0) {
+		say("redwood-gl: CALLED AND NOT THERE: entry %#x (iOS offset %#x), %s, arguments %#lx %#lx %#lx %#lx\n", offset,
+		    offset + 0x20, eagl_slot_name(offset), a0, a1, a2, a3);
+	}
+	return 0;
+}
+
 static long
 eagl_missing(void *context, unsigned offset)
 {
-	struct eagl *e = context;
-
-	eagl_enter(e, offset);
-	if (slot_calls[offset / 8] == 1) {
-		say("redwood-gl: CALLED AND NOT THERE: entry %#x, %s\n", offset, eagl_slot_name(offset));
-	}
-	return 0;
+	return eagl_missing_raw(offset, (unsigned long)context, 0, 0, 0);
 }
 
 static struct eagl *
