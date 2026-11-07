@@ -1,0 +1,61 @@
+From a5bf2930734e320651596a6a7b286f389dfd47cc Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sat, 7 Nov 2026 06:48:56 +0000
+Subject: [PATCH] 0983 vince: keep the top 4 MiB of RAM out of the VM for the
+ Adreno 506 (GPU memory at 0x7fc00000)
+
+0982 put the GPU memory at 0x47800000, which is inside the RAM xnu manages on this loader layout (0x20000000-0x7fffffff); ~24 s after boot the VM freed that page and pmap_assert_free panicked because the driver had mapped it.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c    |  5 +++--
+ osfmk/arm64/arm_vm_init.c | 14 ++++++++++++++
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index 4087eba..dcc04c7 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -125,10 +125,11 @@ extern void VinceGPUStart(void);
+ #define SCM_PIL_IS_SUPPORTED    0x02000207ull
+ 
+ /*
+- * GPU memory: RAM below XNU's DRAM (which starts at 0xa0000000), mapped uncached so the GPU sees every CPU write.
++ * GPU memory: the top 4 MiB of the RAM the loader hands over (XNU's range here is 0x20000000-0x7fffffff, the VM
++ * stops 4 MiB short of it), mapped uncached so the GPU sees every CPU write.
+  * The GPU SMMU stays in the bypass TZ leaves after restore_sec_cfg, so GPU addresses are physical addresses.
+  */
+-#define GPU_MEM_PA              0x47800000u
++#define GPU_MEM_PA              0x7fc00000u     /* top 4 MiB of the loader's RAM, kept out of the VM (arm_vm_init.c) */
+ #define GPU_MEM_SIZE            0x00200000u
+ #define GPU_PM4_OFF             0x00000000u
+ #define GPU_PFP_OFF             0x00010000u
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 6f327c9..e17846f 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1917,6 +1917,20 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	 */
+ 	gVirtBase = args->virtBase;
+ 	gPhysBase = args->physBase;
++#if defined(VINCE)
++	/*
++	 * Keep the top 4 MiB of the RAM the loader hands over out of the VM: the Adreno 506 driver
++	 * (bsd/dev/vince_adreno.c, GPU_MEM_PA 0x7fc00000) maps that range itself and gives part of it to
++	 * TrustZone. A page the VM owns and a kernel mapping of it at the same time is a panic
++	 * (pmap_assert_free: Found at least one mapping to 0x47800000, with the first GPU memory address).
++	 */
++	if (args->memSize > 0x10000000ULL) {
++		args->memSize -= 0x400000ULL;
++		if (args->memSizeActual != 0 && args->memSizeActual > 0x400000ULL) {
++			args->memSizeActual -= 0x400000ULL;
++		}
++	}
++#endif
+ #if KASAN
+ 	real_phys_size = args->memSize + (shadow_ptop - shadow_pbase);
+ #else
+-- 
+2.43.0
+
