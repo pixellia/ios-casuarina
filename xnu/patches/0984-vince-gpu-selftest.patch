@@ -1,0 +1,230 @@
+From 9a9b995ea44dbf366d77d8f073388a8514044dd3 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sat, 7 Nov 2026 07:11:02 +0000
+Subject: [PATCH] 0984 vince: VinceGPU self-test (adreno_test=1)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 184 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 184 insertions(+)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 4ffa2db..243a80c 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -20,6 +20,7 @@
+ #include <mach/mach_time.h>
+ #include <mach/vm_param.h>
+ #include <sys/systm.h>
++#include <pexpert/pexpert.h>
+ 
+ extern "C" {
+ uint64_t kvtophys(vm_offset_t va);
+@@ -132,6 +133,8 @@ millisecondsUntil(const struct msm_timespec *when)
+ 	return left_ns / NSEC_PER_MSEC;
+ }
+ 
++static void VinceGPUSelfTest(void);
++
+ static bool
+ gpuWait(uint32_t fence, int64_t patienceMs)
+ {
+@@ -193,6 +196,12 @@ VinceGPUStart(void)
+ 		IOLog("VinceGPU: service failed to start\n");
+ 	}
+ 	gpu->release();
++	{
++		uint32_t test = 0;
++		if (PE_parse_boot_argn("adreno_test", &test, sizeof(test)) && test) {
++			VinceGPUSelfTest();
++		}
++	}
+ }
+ 
+ void
+@@ -200,6 +209,181 @@ VinceGPUStop(void)
+ {
+ }
+ 
++/* ---------------- self-test (boot-arg adreno_test=1) ---------------- */
++
++/*
++ * The path a user program takes, without the Mach calls: buffers the way GEM_NEW makes them (XNU's own RAM,
++ * write-combined), command buffers submitted through vince_gpu_submit(), the fence waited for, the results
++ * read back through the kernel mapping. Writes with CP_MEM_WRITE to the GPU address of a buffer, so it proves the
++ * GPU reads command buffers and writes memory outside its own 2 MiB block.
++ */
++static uint32_t
++selfParity(uint32_t v)
++{
++	v ^= v >> 16;
++	v ^= v >> 8;
++	v ^= v >> 4;
++	v ^= v >> 2;
++	v ^= v >> 1;
++	return (~v) & 1u;
++}
++
++static uint32_t
++selfPkt7(uint32_t op, uint32_t cnt)
++{
++	return 0x70000000u | cnt | (selfParity(cnt) << 15) | ((op & 0x7fu) << 16) | (selfParity(op) << 23);
++}
++
++static bool
++selfBuffer(struct gpu_buffer *b, uint64_t size)
++{
++	IOBufferMemoryDescriptor *memory = IOBufferMemoryDescriptor::inTaskWithOptions(
++		kernel_task, kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache,
++		(vm_size_t)size, PAGE_SIZE);
++
++	bzero(b, sizeof(*b));
++	if (memory == NULL) {
++		return false;
++	}
++	b->memory = memory;
++	b->kernel = (uint8_t *)memory->getBytesNoCopy();
++	b->address = memory->getPhysicalAddress();
++	if (b->address == 0) {
++		b->address = kvtophys((vm_offset_t)b->kernel);
++	}
++	b->size = size;
++	bzero(b->kernel, (size_t)size);
++	return true;
++}
++
++static void
++VinceGPUSelfTest(void)
++{
++	struct gpu_buffer ib, data;
++	volatile uint32_t *d, *c;
++	uint64_t value = 0;
++	uint32_t fence, i, ok = 0, total = 0;
++	uint64_t addresses[2];
++	uint32_t words[2];
++
++	IOLog("VinceGPU test: start\n");
++	if (!vince_gpu_parameter(1, &value)) {
++		IOLog("VinceGPU test: GPU_ID unavailable\n");
++		return;
++	}
++	IOLog("VinceGPU test: GPU_ID %llu\n", value);
++	if (!selfBuffer(&ib, 4096)) {
++		IOLog("VinceGPU test: no memory for the command buffer\n");
++		return;
++	}
++	if (!selfBuffer(&data, 4096)) {
++		IOLog("VinceGPU test: no memory for the data buffer\n");
++		ib.memory->release();
++		return;
++	}
++	IOLog("VinceGPU test: command buffer at PA %#llx, data buffer at PA %#llx\n", ib.address, data.address);
++	d = (volatile uint32_t *)data.kernel;
++	c = (volatile uint32_t *)ib.kernel;
++
++	/* 1: one word */
++	for (i = 0; i < 1024; i++) {
++		d[i] = 0x11111111u;
++	}
++	c[0] = selfPkt7(61 /* CP_MEM_WRITE */, 3);
++	c[1] = (uint32_t)data.address;
++	c[2] = (uint32_t)(data.address >> 32);
++	c[3] = 0xcafe0001u;
++	addresses[0] = ib.address;
++	words[0] = 4;
++	__asm__ volatile ("dsb sy" ::: "memory");
++	total++;
++	fence = vince_gpu_submit(addresses, words, 1);
++	if (fence != 0 && gpuWait(fence, 1000) && d[0] == 0xcafe0001u && d[1] == 0x11111111u) {
++		ok++;
++		IOLog("VinceGPU test: 1 PASS (one word, fence %u)\n", fence);
++	} else {
++		IOLog("VinceGPU test: 1 FAIL (fence %u, d[0] %#x, d[1] %#x)\n", fence, d[0], d[1]);
++	}
++
++	/* 2: sixteen words in one packet */
++	c[0] = selfPkt7(61, 2 + 16);
++	c[1] = (uint32_t)(data.address + 0x100);
++	c[2] = (uint32_t)((data.address + 0x100) >> 32);
++	for (i = 0; i < 16; i++) {
++		c[3 + i] = 0xbeef0000u + i;
++	}
++	words[0] = 3 + 16;
++	__asm__ volatile ("dsb sy" ::: "memory");
++	total++;
++	fence = vince_gpu_submit(addresses, words, 1);
++	if (fence != 0 && gpuWait(fence, 1000)) {
++		for (i = 0; i < 16; i++) {
++			if (d[0x40 + i] != 0xbeef0000u + i) {
++				break;
++			}
++		}
++		if (i == 16 && d[0x3f] == 0x11111111u && d[0x50] == 0x11111111u) {
++			ok++;
++			IOLog("VinceGPU test: 2 PASS (sixteen words, fence %u)\n", fence);
++		} else {
++			IOLog("VinceGPU test: 2 FAIL (word %u is %#x)\n", i, i < 16 ? d[0x40 + i] : 0);
++		}
++	} else {
++		IOLog("VinceGPU test: 2 FAIL (fence %u)\n", fence);
++	}
++
++	/* 3: two command buffers in one submit */
++	c[0x100] = selfPkt7(61, 3);
++	c[0x101] = (uint32_t)(data.address + 0x200);
++	c[0x102] = (uint32_t)((data.address + 0x200) >> 32);
++	c[0x103] = 0x5a5a0001u;
++	c[0x110] = selfPkt7(61, 3);
++	c[0x111] = (uint32_t)(data.address + 0x204);
++	c[0x112] = (uint32_t)((data.address + 0x204) >> 32);
++	c[0x113] = 0x5a5a0002u;
++	addresses[0] = ib.address + 0x400;
++	addresses[1] = ib.address + 0x440;
++	words[0] = 4;
++	words[1] = 4;
++	__asm__ volatile ("dsb sy" ::: "memory");
++	total++;
++	fence = vince_gpu_submit(addresses, words, 2);
++	if (fence != 0 && gpuWait(fence, 1000) && d[0x80] == 0x5a5a0001u && d[0x81] == 0x5a5a0002u) {
++		ok++;
++		IOLog("VinceGPU test: 3 PASS (two command buffers, fence %u)\n", fence);
++	} else {
++		IOLog("VinceGPU test: 3 FAIL (fence %u, %#x %#x)\n", fence, d[0x80], d[0x81]);
++	}
++
++	/* 4: a hundred submits in a row (the ring and the fence counter) */
++	addresses[0] = ib.address;
++	c[0] = selfPkt7(61, 3);
++	c[1] = (uint32_t)(data.address + 0x300);
++	c[2] = (uint32_t)((data.address + 0x300) >> 32);
++	c[3] = 0x77770000u;
++	words[0] = 4;
++	total++;
++	fence = 0;
++	for (i = 1; i <= 100; i++) {
++		c[3] = 0x77770000u + i;
++		__asm__ volatile ("dsb sy" ::: "memory");
++		fence = vince_gpu_submit(addresses, words, 1);
++		if (fence == 0 || !gpuWait(fence, 1000)) {
++			break;
++		}
++	}
++	if (i == 101 && d[0xc0] == 0x77770000u + 100) {
++		ok++;
++		IOLog("VinceGPU test: 4 PASS (100 submits, last fence %u)\n", fence);
++	} else {
++		IOLog("VinceGPU test: 4 FAIL (stopped at %u, fence %u, value %#x)\n", i, fence, d[0xc0]);
++	}
++
++	IOLog("VinceGPU test: %u of %u passed\n", ok, total);
++	data.memory->release();
++	ib.memory->release();
++}
++
+ /* ---------------- VinceGPUUserClient ---------------- */
+ 
+ class VinceGPUUserClient : public IOUserClient
+-- 
+2.43.0
+
