@@ -1,0 +1,216 @@
+From 8630495ad3000fe7add1e573441fc0777b319ef0 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sun, 8 Nov 2026 17:13:40 +0000
+Subject: [PATCH] 0990 vince: the default surface in the GPU pool too, pool
+ report when a buffer does not fit
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/SweetFramebuffer.cpp | 10 ++++-
+ iokit/Kernel/arm/SweetSurface.cpp     | 35 +++++++++++++++
+ iokit/Kernel/arm/VinceGPU.cpp         | 63 ++++++++++++++++++++++++++-
+ 3 files changed, 105 insertions(+), 3 deletions(-)
+
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 3b5cc82..83ce179 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -238,6 +238,7 @@ public:
+ 	 * composed in the default surface (32 bpp, logical size, fShadowVA) and converted into it.
+ 	 */
+ 	SweetSurface *fPanelSurf;     /* the panel memory (fPixels maps it) */
++	uint32_t      fShadowStride;  /* ... its row in bytes */
+ 	uintptr_t     fShadowVA;      /* kernel mapping of fSurface, or 0 when the panel is scanned directly */
+ 	uint16_t     *fXMap;          /* panel column -> logical column */
+ 	uint32_t      fVinceBlits;    /* panel conversions so far, and the last one's time */
+@@ -526,6 +527,7 @@ AppleCLCD::startVince(void)
+ 	fPixels = fPanelSurf != NULL ? fPanelSurf->kernelAddress() : 0;
+ 	fSurface = sweet_surface_create_buffer(fLogicalW, fLogicalH, SWEET_FB_FORMAT_BGRA);
+ 	fShadowVA = fSurface != NULL ? fSurface->kernelAddress() : 0;
++	fShadowStride = fSurface != NULL ? fSurface->bytesPerRow : fLogicalW * 4;
+ 	fWorkLoop = IOWorkLoop::workLoop();
+ 	fXMap = (uint16_t *)IOMallocData(fWidth * sizeof(uint16_t));
+ 	if (fLock == NULL || fClients == NULL || fPixels == 0 || fShadowVA == 0 || fWorkLoop == NULL || fXMap == NULL) {
+@@ -578,11 +580,15 @@ void
+ AppleCLCD::blitVince(void)
+ {
+ 	const uint32_t *shadow = (const uint32_t *)fShadowVA;
++	uint32_t shadowRow = fShadowStride / 4;
+ 	uint8_t *panel = (uint8_t *)fPixels;
+ 	uint64_t began = mach_absolute_time(), took;
+ 
++	if (fSurface != NULL && fSurface->vincePool) {
++		vince_surface_sync(fSurface);   /* the GPU may have drawn into it: wait, and read RAM, not the cache */
++	}
+ 	for (uint32_t y = 0; y < fHeight; y++) {
+-		const uint32_t *row = shadow + (uint64_t)(((uint64_t)y * fLogicalH) / fHeight) * fLogicalW;
++		const uint32_t *row = shadow + (uint64_t)(((uint64_t)y * fLogicalH) / fHeight) * shadowRow;
+ 		uint32_t *out = (uint32_t *)(panel + (uint64_t)y * fRowBytes);
+ 		for (uint32_t x = 0; x + 4 <= fWidth; x += 4) {
+ 			uint32_t p0 = row[fXMap[x]], p1 = row[fXMap[x + 1]], p2 = row[fXMap[x + 2]], p3 = row[fXMap[x + 3]];
+@@ -1492,7 +1498,7 @@ AppleCLCD::present(const uint8_t *rec)
+ 		dst = (uint8_t *)fShadowVA;
+ 		dw = fLogicalW;
+ 		dh = fLogicalH;
+-		dstride = fLogicalW * 4;
++		dstride = fShadowStride;
+ 		offx = offy = 0;
+ 	}
+ #endif
+diff --git a/iokit/Kernel/arm/SweetSurface.cpp b/iokit/Kernel/arm/SweetSurface.cpp
+index 2ab2004..c0769b4 100644
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -489,6 +489,41 @@ sweet_surface_create_buffer(uint32_t width, uint32_t height, uint32_t pixelForma
+ 	s->bytesPerElement = 4;
+ 	s->elementWidth = s->elementHeight = 1;
+ 	s->pixelFormat = pixelFormat;
++	if (vince_place_enabled()) {
++		/*
++		 * vinceplace=1: the default surface, which the window server draws every other frame into, is in the GPU's pool
++		 * too, with rows of 64 bytes (what the GPU addresses) and the 64 rows past the picture that its tiles run into.
++		 */
++		uint32_t row = (width * 4 + 63) & ~63u;
++		uint64_t take = round_page_64((uint64_t)row * (height + 64));
++		uint64_t pa = vince_pool_alloc(take);
++		IOMemoryDescriptor *md = pa != 0 ? IOMemoryDescriptor::withAddressRange(pa, take,
++		    kIODirectionInOut | kIOMemoryTypePhysical64, NULL) : NULL;
++
++		if (md != NULL) {
++			s->bytesPerRow = row;
++			s->allocSize = (uint32_t)sweet_round_upage((uint64_t)row * height);
++			s->memory = md;
++			s->vincePool = true;
++			s->poolPhys = pa;
++			s->poolSize = take;
++			s->mapCache = kIOMapCopybackCache;
++			uintptr_t va = s->kernelAddress();
++			if (va != 0) {
++				bzero((void *)va, take);
++				sweet_dcache_flush((vm_offset_t)va, (unsigned)take);
++				if (sweet_surface_publish(s)) {
++					IOLog("SWEET SURF: the default surface %ux%u in the GPU's pool at %#llx, rows of %u\n", width, height,
++					    (unsigned long long)pa, row);
++					return s;
++				}
++			}
++			s->release();           /* (gives the pool memory back) */
++			return NULL;
++		} else if (pa != 0) {
++			vince_pool_free(pa, take);
++		}
++	}
+ 	s->allocSize = (uint32_t)sweet_round_upage((uint64_t)s->bytesPerRow * height);
+ 	IOBufferMemoryDescriptor *mem = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+ 	    kIODirectionInOut | kIOMemoryKernelUserShared, s->allocSize, SWEET_UPAGE);
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 921532f..a90fc60 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -239,11 +239,47 @@ poolFreeLocked(uint64_t address, uint64_t size)
+ 	}
+ }
+ 
++/* the pool is asked for by the display's first surface, which may come before the GPU's service starts */
++static void
++poolLockInit(void)
++{
++	if (gPoolLock == NULL) {
++		IOLock *lock = IOLockAlloc();
++
++		if (lock != NULL && !OSCompareAndSwapPtr(NULL, lock, (void * volatile *)&gPoolLock)) {
++			IOLockFree(lock);
++		}
++	}
++}
++
++/* what is left of the pool, for the log when a buffer does not fit; gPoolLock held */
++static void
++poolReport(const char *why, uint64_t wanted)
++{
++	uint64_t used = 0, run = 0, best = 0;
++
++	if (gPoolBits == NULL) {
++		return;
++	}
++	for (uint64_t i = 0; i < GPU_POOL_UNITS; i++) {
++		if (poolUsed(i)) {
++			used++;
++			run = 0;
++		} else if (++run > best) {
++			best = run;
++		}
++	}
++	IOLog("VinceGPU: pool %s %llu KiB: %llu of %llu MiB used, largest free piece %llu KiB, %u screens\n", why,
++	    (unsigned long long)(wanted >> 10), (unsigned long long)(used * GPU_POOL_UNIT >> 20),
++	    (unsigned long long)(GPU_POOL_SIZE >> 20), (unsigned long long)(best * GPU_POOL_UNIT >> 10), gPlaceHeld);
++}
++
+ static uint64_t
+ poolAlloc(uint64_t size)
+ {
+ 	uint64_t pa;
+ 
++	poolLockInit();
+ 	IOLockLock(gPoolLock);
+ 	pa = poolAllocLocked(size);
+ 	IOLockUnlock(gPoolLock);
+@@ -360,7 +396,10 @@ vince_place_enabled(void)
+ 		uint32_t place = 0;
+ 		mode = PE_parse_boot_argn("vinceplace", &place, sizeof(place)) && place && cacheMode();
+ 	}
+-	return mode == 1 && gPoolLock != NULL && vince_gpu_ready();
++	if (mode == 1) {
++		poolLockInit();
++	}
++	return mode == 1 && gPoolLock != NULL;
+ }
+ 
+ uint64_t
+@@ -368,6 +407,7 @@ vince_pool_alloc(uint64_t size)
+ {
+ 	uint64_t pa = 0;
+ 
++	poolLockInit();
+ 	if (gPoolLock == NULL || size == 0 || size > GPU_BUFFER_MAX) {
+ 		return 0;
+ 	}
+@@ -379,6 +419,9 @@ vince_pool_alloc(uint64_t size)
+ 			gPlaceHeld++;
+ 		}
+ 	}
++	if (pa == 0) {
++		poolReport("cannot give a screen", size);
++	}
+ 	IOLockUnlock(gPoolLock);
+ 	return pa;
+ }
+@@ -725,6 +768,24 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 	/* from the pool: one piece of RAM nothing else owns */
+ 	IOLockLock(gGPULock);
+ 	pooled = poolAlloc(size);
++	if (pooled == 0) {
++		static uint32_t told;
++		if (told++ < 6) {
++			/* (for the log: what the buffers of this client hold) */
++			uint64_t held = 0, count = 0;
++			for (uint32_t i = 0; i < GPU_BUFFERS; i++) {
++				if (fBuffers[i].memory != NULL && fBuffers[i].pooled) {
++					held += fBuffers[i].size;
++					count++;
++				}
++			}
++			IOLockLock(gPoolLock);
++			poolReport("has no", size);
++			IOLockUnlock(gPoolLock);
++			IOLog("VinceGPU: ... this client holds %llu pool buffers, %llu KiB\n", (unsigned long long)count,
++			    (unsigned long long)(held >> 10));
++		}
++	}
+ 	IOLockUnlock(gGPULock);
+ 	if (pooled != 0) {
+ 		memory = IOMemoryDescriptor::withAddressRange(pooled, size, kIODirectionInOut | kIOMemoryTypePhysical64, NULL);
+-- 
+2.43.0
+
