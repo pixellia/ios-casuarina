@@ -234,7 +234,14 @@ topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask
 	 */
 	if (dladdr(__builtin_return_address(0), &caller) != 0 && caller.dli_fname != NULL &&
 	    strstr(caller.dli_fname, "OSMesa") != NULL) {
-		options |= kIOMapWriteCombineCache;
+		static int cached = -1;
+		if (cached < 0) {
+			char args[1024];
+			size_t n = sizeof(args);
+			cached = sysctlbyname("kern.bootargs", args, &n, NULL, 0) == 0 && strstr(args, "vincecache=1") != NULL;
+		}
+		/* vincecache=1: the kernel does the cache maintenance (VinceGPU.cpp), so the map can be an ordinary cached one */
+		options |= cached ? kIOMapCopybackCache : kIOMapWriteCombineCache;
 	}
 	r = IOConnectMapMemory64(connect, memoryType, intoTask, address, size, options);
 
