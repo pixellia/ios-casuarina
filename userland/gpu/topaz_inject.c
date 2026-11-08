@@ -223,7 +223,20 @@ topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask
     mach_vm_size_t *size, IOOptionBits options)
 {
 	static int told;
-	IOReturn r = IOConnectMapMemory64(connect, memoryType, intoTask, address, size, options);
+	Dl_info caller;
+	IOReturn r;
+
+	/*
+	 * The buffers of the GPU come from a range of RAM the VM does not own (VinceGPU.cpp, the pool): mapped with the
+	 * default cache mode, which is device memory for such a range, where a store that is not aligned to its size is a
+	 * bus error (the tail of a memmove: SIGBUS, protection 3/3). Mesa's maps are asked for write-combined, as the
+	 * memory has always been mapped: ordinary memory that needs no alignment.
+	 */
+	if (dladdr(__builtin_return_address(0), &caller) != 0 && caller.dli_fname != NULL &&
+	    strstr(caller.dli_fname, "OSMesa") != NULL) {
+		options |= kIOMapWriteCombineCache;
+	}
+	r = IOConnectMapMemory64(connect, memoryType, intoTask, address, size, options);
 
 	if (told < 24) {
 		vm_address_t at = r == 0 ? (vm_address_t)*address : 0;
