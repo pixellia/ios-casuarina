@@ -1,0 +1,120 @@
+From e90ce24458a6f2f66a547eaf43b187894d592581 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sun, 8 Nov 2026 15:30:45 +0000
+Subject: [PATCH] 0988 vince: cached mapping of the GPU's buffers with cache
+ maintenance (vincecache=1)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 55 ++++++++++++++++++++++++++++++++++-
+ 1 file changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 758c84d..c86f7ee 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -24,6 +24,7 @@
+ 
+ extern "C" {
+ uint64_t kvtophys(vm_offset_t va);
++void sweet_dcache_flush(vm_offset_t addr, unsigned length);   /* osfmk/arm/caches.c: dc civac */
+ bool vince_gpu_ready(void);
+ bool vince_gpu_parameter(uint32_t which, uint64_t *value);
+ uint32_t vince_gpu_submit(const uint64_t *addresses, const uint32_t *words, uint32_t count);
+@@ -115,10 +116,45 @@ struct gpu_buffer {
+ 	uint64_t size;
+ 	uint32_t flags;
+ 	bool pooled;
++	IOMemoryMap *kmap;      /* vincecache=1: a cacheable kernel mapping, for cache maintenance */
+ };
+ 
+ static IOLock *gGPULock = NULL;
+ 
++
++/*
++ * vincecache=1: the buffers of the pool are mapped to the window server as ordinary cached memory instead of
++ * write-combined (reading write-combined memory is ~70 MB/s). The GPU does not snoop the CPU caches, so the kernel
++ * cleans+invalidates the buffer: before a submit (what the CPU wrote must reach RAM, and no dirty line may later be
++ * written over what the GPU wrote) and after the fence in cpu_prep (the CPU must not read stale lines).
++ */
++static bool
++cacheMode(void)
++{
++	static int mode = -1;
++	if (mode < 0) {
++		uint32_t v = 0;
++		mode = (PE_parse_boot_argn("vincecache", &v, sizeof(v)) && v) ? 1 : 0;
++	}
++	return mode == 1;
++}
++
++static void
++cacheSync(struct gpu_buffer *b)
++{
++	if (!cacheMode() || !b->pooled || b->memory == NULL) {
++		return;
++	}
++	if (b->kmap == NULL) {
++		b->kmap = b->memory->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapCopybackCache);
++		if (b->kmap == NULL) {
++			IOLog("VinceGPU: no cacheable kernel mapping of a buffer of %llu bytes\n", b->size);
++			return;
++		}
++	}
++	sweet_dcache_flush((vm_offset_t)b->kmap->getVirtualAddress(), (unsigned)b->size);
++}
++
+ /*
+  * The pool GEM_NEW buffers come from. The GPU runs on from the first physical address of a buffer (no IOMMU), so a
+  * buffer has to be one piece, and RAM that has been in use for a while has no 12 MiB pieces left (the window server
+@@ -505,6 +541,10 @@ VinceGPUUserClient::start(IOService *provider)
+ void
+ VinceGPUUserClient::freeBuffer(struct gpu_buffer *b)
+ {
++	if (b->kmap != NULL) {
++		b->kmap->release();
++		b->kmap = NULL;
++	}
+ 	if (b->memory != NULL) {
+ 		b->memory->release();
+ 		b->memory = NULL;
+@@ -689,6 +729,12 @@ VinceGPUUserClient::submit(struct msm_gem_submit *request)
+ 		addresses[count] = b->address + cmds[i].submit_offset;
+ 		words[count++] = cmds[i].size / 4;
+ 	}
++	for (uint32_t i = 0; i < request->nr_bos; i++) {
++		struct gpu_buffer *b = buffer(bos[i].handle);
++		if (b != NULL) {
++			cacheSync(b);
++		}
++	}
+ 
+ 	request->fence = vince_gpu_submit(addresses, words, count);
+ 	IOLockUnlock(gGPULock);
+@@ -718,7 +764,7 @@ VinceGPUUserClient::clientMemoryForType(UInt32 type, IOOptionBits *options, IOMe
+ 	if (b != NULL && b->memory != NULL) {
+ 		b->memory->retain();
+ 		*memory = b->memory;
+-		*options = b->pooled ? kIOMapWriteCombineCache : 0;
++		*options = b->pooled ? (cacheMode() ? kIOMapCopybackCache : kIOMapWriteCombineCache) : 0;
+ 		ret = kIOReturnSuccess;
+ 	}
+ 	IOLockUnlock(gGPULock);
+@@ -774,6 +820,13 @@ VinceGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments
+ 		patience = millisecondsUntil(&r.cpuPrep.timeout);
+ 		if (!gpuWait(vince_gpu_last(), patience)) {
+ 			ret = kIOReturnBusy;
++		} else if (cacheMode() && (r.cpuPrep.op & 1 /* MSM_PREP_READ */)) {
++			IOLockLock(gGPULock);
++			b = buffer(r.cpuPrep.handle);
++			if (b != NULL) {
++				cacheSync(b);
++			}
++			IOLockUnlock(gGPULock);
+ 		}
+ 		break;
+ 	case kMsmGemSubmit:
+-- 
+2.43.0
+
