@@ -1,0 +1,251 @@
+From 993dd1ddeaeb01228b850ef168929e4c6dc26f85 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Sun, 8 Nov 2026 09:41:04 +0000
+Subject: [PATCH] 0987 vince: a 192 MiB pool of RAM for the buffers of the GPU
+
+The GPU needs each buffer in one piece of physical memory, and the VM had no 12 MiB piece left. The range below the Adreno block is kept out of the VM and GEM_NEW takes buffers from it, first fit in 4 KiB units; memory of the VM is only the fallback.
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 152 +++++++++++++++++++++++++++-------
+ osfmk/arm64/arm_vm_init.c     |  17 ++--
+ 2 files changed, 130 insertions(+), 39 deletions(-)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 47ad4fe..758c84d 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -109,15 +109,85 @@ struct drm_gem_close {
+ #define GPU_BUFFER_MAX (256ull << 20)
+ 
+ struct gpu_buffer {
+-	IOBufferMemoryDescriptor *memory;
++	IOMemoryDescriptor *memory;
+ 	uint8_t *kernel;
+ 	uint64_t address;
+ 	uint64_t size;
+ 	uint32_t flags;
++	bool pooled;
+ };
+ 
+ static IOLock *gGPULock = NULL;
+ 
++/*
++ * The pool GEM_NEW buffers come from. The GPU runs on from the first physical address of a buffer (no IOMMU), so a
++ * buffer has to be one piece, and RAM that has been in use for a while has no 12 MiB pieces left (the window server
++ * wants one for every frame). So a part of RAM is kept out of the VM for it (osfmk/arm64/arm_vm_init.c: the range
++ * just below the 4 MiB of bsd/dev/vince_adreno.c; the two must agree) and handed out here in 4 KiB units, first fit.
++ */
++#define GPU_POOL_PA     0x73c00000ull
++#define GPU_POOL_SIZE   0x0c000000ull
++#define GPU_POOL_UNIT   4096ull
++#define GPU_POOL_UNITS  (GPU_POOL_SIZE / GPU_POOL_UNIT)
++
++static uint32_t *gPoolBits = NULL;      /* one bit a unit: set = given out (under gGPULock) */
++
++static bool
++poolUsed(uint64_t unit)
++{
++	return (gPoolBits[unit / 32] >> (unit % 32)) & 1;
++}
++
++static void
++poolMark(uint64_t unit, bool used)
++{
++	if (used) {
++		gPoolBits[unit / 32] |= 1u << (unit % 32);
++	} else {
++		gPoolBits[unit / 32] &= ~(1u << (unit % 32));
++	}
++}
++
++/* the physical address of size bytes (a multiple of 4 KiB) of the pool, or 0; gGPULock held */
++static uint64_t
++poolAlloc(uint64_t size)
++{
++	uint64_t need = size / GPU_POOL_UNIT, run = 0;
++
++	if (gPoolBits == NULL) {
++		gPoolBits = (uint32_t *)IOMallocZero(GPU_POOL_UNITS / 8);
++		if (gPoolBits == NULL) {
++			return 0;
++		}
++	}
++	for (uint64_t i = 0; need != 0 && i < GPU_POOL_UNITS; i++) {
++		if (poolUsed(i)) {
++			run = 0;
++		} else if (++run == need) {
++			uint64_t first = i + 1 - need;
++
++			for (uint64_t j = first; j <= i; j++) {
++				poolMark(j, true);
++			}
++			return GPU_POOL_PA + first * GPU_POOL_UNIT;
++		}
++	}
++	return 0;
++}
++
++static void
++poolFree(uint64_t address, uint64_t size)
++{
++	uint64_t first = (address - GPU_POOL_PA) / GPU_POOL_UNIT;
++
++	if (gPoolBits == NULL || address < GPU_POOL_PA || address + size > GPU_POOL_PA + GPU_POOL_SIZE) {
++		return;
++	}
++	for (uint64_t j = first; j < first + size / GPU_POOL_UNIT; j++) {
++		poolMark(j, false);
++	}
++}
++
+ static int64_t
+ millisecondsUntil(const struct msm_timespec *when)
+ {
+@@ -438,6 +508,9 @@ VinceGPUUserClient::freeBuffer(struct gpu_buffer *b)
+ 	if (b->memory != NULL) {
+ 		b->memory->release();
+ 		b->memory = NULL;
++		if (b->pooled) {
++			poolFree(b->address, b->size);
++		}
+ 	}
+ 	bzero(b, sizeof(*b));
+ }
+@@ -472,7 +545,8 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ {
+ 	uint64_t size = round_page_64(request->size);
+ 	struct gpu_buffer *b = NULL;
+-	IOBufferMemoryDescriptor *memory;
++	IOMemoryDescriptor *memory = NULL;
++	uint64_t pooled = 0;
+ 
+ 	if (size == 0 || size > GPU_BUFFER_MAX || fBuffers == NULL) {
+ 		return kIOReturnBadArgument;
+@@ -494,43 +568,59 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 		return kIOReturnNoMemory;
+ 	}
+ 
+-	/*
+-	 * The GPU reads and writes physical addresses in one run from the buffer's first one (there is no IOMMU for it),
+-	 * so the memory must be one piece: with pages from all over RAM a buffer bigger than a page made the GPU write
+-	 * over whatever came after the first page (page tables, in the panic that showed it).
+-	 */
+-	memory = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(
+-	    kernel_task,
+-	    kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache | kIOMemoryPhysicallyContiguous,
+-	    (vm_size_t)size,
+-	    0xfffff000ULL);
+-
+-	if (memory != NULL) {
+-		IOByteCount segment = 0;
+-		addr64_t first = memory->getPhysicalSegment(0, &segment, kIOMemoryMapperNone);
+-
+-		if (first == 0 || segment < size || first + size > 0x100000000ULL) {
+-			IOLog("VinceGPU: GEM_NEW %llu bytes: memory is not one piece (%llu), refused\n", size, (uint64_t)segment);
+-			memory->release();
+-			memory = NULL;
++	/* from the pool: one piece of RAM nothing else owns */
++	IOLockLock(gGPULock);
++	pooled = poolAlloc(size);
++	IOLockUnlock(gGPULock);
++	if (pooled != 0) {
++		memory = IOMemoryDescriptor::withAddressRange(pooled, size, kIODirectionInOut | kIOMemoryTypePhysical64, NULL);
++		if (memory == NULL) {
++			IOLockLock(gGPULock);
++			poolFree(pooled, size);
++			IOLockUnlock(gGPULock);
++			pooled = 0;
+ 		}
+-	} else {
+-		IOLog("VinceGPU: GEM_NEW %llu bytes: no contiguous memory\n", size);
++	}
++
++	/* the pool has no piece that big: memory of the VM, if it is one piece (it hardly ever is) */
++	if (memory == NULL) {
++		IOBufferMemoryDescriptor *buffer = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(
++		    kernel_task,
++		    kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache | kIOMemoryPhysicallyContiguous,
++		    (vm_size_t)size,
++		    0xfffff000ULL);
++
++		if (buffer != NULL) {
++			IOByteCount segment = 0;
++			addr64_t first = buffer->getPhysicalSegment(0, &segment, kIOMemoryMapperNone);
++
++			if (first == 0 || segment < size || first + size > 0x100000000ULL) {
++				IOLog("VinceGPU: GEM_NEW %llu bytes: memory is not one piece (%llu), refused\n", size, (uint64_t)segment);
++				buffer->release();
++				buffer = NULL;
++			}
++		} else {
++			IOLog("VinceGPU: GEM_NEW %llu bytes: the pool and RAM have no piece that big\n", size);
++		}
++		memory = buffer;
+ 	}
+ 	if (memory == NULL) {
+-		IOLockLock(gGPULock);
+-		bzero(b, sizeof(*b));
+-		IOLockUnlock(gGPULock);
+ 		return kIOReturnNoMemory;
+ 	}
+ 
+ 	IOLockLock(gGPULock);
+ 	bzero(b, sizeof(*b));
+ 	b->memory = memory;
+-	b->kernel = (uint8_t *)memory->getBytesNoCopy();
+-	b->address = memory->getPhysicalAddress();
+-	if (b->address == 0) {
+-		b->address = kvtophys((vm_offset_t)b->kernel);
++	b->pooled = pooled != 0;
++	if (b->pooled) {
++		b->kernel = NULL;
++		b->address = pooled;
++	} else {
++		b->kernel = (uint8_t *)((IOBufferMemoryDescriptor *)memory)->getBytesNoCopy();
++		b->address = memory->getPhysicalAddress();
++		if (b->address == 0) {
++			b->address = kvtophys((vm_offset_t)b->kernel);
++		}
+ 	}
+ 	b->size = size;
+ 	b->flags = request->flags;
+@@ -628,7 +718,7 @@ VinceGPUUserClient::clientMemoryForType(UInt32 type, IOOptionBits *options, IOMe
+ 	if (b != NULL && b->memory != NULL) {
+ 		b->memory->retain();
+ 		*memory = b->memory;
+-		*options = 0;
++		*options = b->pooled ? kIOMapWriteCombineCache : 0;
+ 		ret = kIOReturnSuccess;
+ 	}
+ 	IOLockUnlock(gGPULock);
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index e17846f..37e5d07 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1919,15 +1919,16 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	gPhysBase = args->physBase;
+ #if defined(VINCE)
+ 	/*
+-	 * Keep the top 4 MiB of the RAM the loader hands over out of the VM: the Adreno 506 driver
+-	 * (bsd/dev/vince_adreno.c, GPU_MEM_PA 0x7fc00000) maps that range itself and gives part of it to
+-	 * TrustZone. A page the VM owns and a kernel mapping of it at the same time is a panic
+-	 * (pmap_assert_free: Found at least one mapping to 0x47800000, with the first GPU memory address).
++	 * Keep the top of the RAM the loader hands over out of the VM: its last 4 MiB are the Adreno 506 driver's
++	 * (bsd/dev/vince_adreno.c, GPU_MEM_PA 0x7fc00000; it maps that range itself and gives part of it to TrustZone:
++	 * a page the VM owns and a kernel mapping of it at the same time is a panic, pmap_assert_free), and the 192 MiB
++	 * below them are the pool the buffers of the GPU come from (iokit/Kernel/arm/VinceGPU.cpp, GPU_POOL_PA
++	 * 0x73c00000): the GPU needs every buffer in one piece of physical memory and the VM has none that big.
+ 	 */
+-	if (args->memSize > 0x10000000ULL) {
+-		args->memSize -= 0x400000ULL;
+-		if (args->memSizeActual != 0 && args->memSizeActual > 0x400000ULL) {
+-			args->memSizeActual -= 0x400000ULL;
++	if (args->memSize > 0x30000000ULL) {
++		args->memSize -= 0xc400000ULL;
++		if (args->memSizeActual != 0 && args->memSizeActual > 0xc400000ULL) {
++			args->memSizeActual -= 0xc400000ULL;
+ 		}
+ 	}
+ #endif
+-- 
+2.43.0
+
