@@ -148,6 +148,10 @@ topaz_crash(int sig, siginfo_t *si, void *uc_)
 	if (uc != NULL && uc->uc_mcontext != NULL) {
 		topaz_where("pc", (void *)uc->uc_mcontext->__ss.__pc);
 		topaz_where("lr", (void *)uc->uc_mcontext->__ss.__lr);
+		/* (for a memmove: x0 destination, x1 source, x2 length) */
+		fprintf(stderr, "topaz-crash: x0 %#llx x1 %#llx x2 %#llx x3 %#llx\n",
+		    (unsigned long long)uc->uc_mcontext->__ss.__x[0], (unsigned long long)uc->uc_mcontext->__ss.__x[1],
+		    (unsigned long long)uc->uc_mcontext->__ss.__x[2], (unsigned long long)uc->uc_mcontext->__ss.__x[3]);
 	}
 	n = backtrace(frames, 16);
 	for (int i = 0; i < n; i++) {
@@ -207,6 +211,50 @@ container_manager_fixes(void)
 		fclose(f);
 	}
 }
+
+
+/*
+ * What the buffers of the GPU look like in this process: IOConnectMapMemory64 is interposed to write down the
+ * first maps (connection, type, address, size and what the VM says about the protection).
+ */
+#include <mach/mach_vm.h>
+
+static IOReturn
+topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask, mach_vm_address_t *address,
+    mach_vm_size_t *size, IOOptionBits options)
+{
+	static int told;
+	IOReturn r = IOConnectMapMemory64(connect, memoryType, intoTask, address, size, options);
+
+	if (told < 24) {
+		mach_vm_address_t at = r == 0 ? *address : 0;
+		mach_vm_size_t length = 0;
+		vm_region_basic_info_data_64_t info;
+		mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+		mach_port_t object = MACH_PORT_NULL;
+		kern_return_t k = KERN_FAILURE;
+
+		memset(&info, 0, sizeof(info));
+		if (r == 0) {
+			k = mach_vm_region(mach_task_self(), &at, &length, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count,
+			    &object);
+		}
+		told++;
+		fprintf(stderr, "topaz: map type %u options %#x -> %#x, address %#llx size %#llx; region %#llx + %#llx, protection %d/%d (%s)\n",
+		    memoryType, (unsigned)options, r, r == 0 ? (unsigned long long)*address : 0ull,
+		    r == 0 && size != NULL ? (unsigned long long)*size : 0ull, (unsigned long long)at,
+		    (unsigned long long)length, info.protection, info.max_protection, k == 0 ? "region ok" : "no region");
+		if (r == 0) {
+			fflush(stderr);
+		}
+	}
+	return r;
+}
+
+__attribute__((used)) static const struct { const void *replacement, *replacee; } topaz_interposers[]
+    __attribute__((section("__DATA,__interpose"))) = {
+	{ (const void *)topaz_map_memory, (const void *)IOConnectMapMemory64 },
+};
 
 __attribute__((constructor))
 static void
