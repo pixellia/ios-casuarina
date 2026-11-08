@@ -296,6 +296,14 @@ topaz_inject(void)
 		syslog(LOG_NOTICE, "topaz: gl=0: CoreAnimation keeps its software renderer");
 		return;
 	}
+	/*
+	 * boot-arg fdnobcache=1: freedreno does not keep the buffers it is done with for the next request (its cache of them).
+	 * The GPU's pool is 192 MiB and the window server has filled it: a way to tell whether the cache is what holds it.
+	 */
+	if (strstr(args, "fdnobcache=1") != NULL) {
+		setenv("FD_MESA_DEBUG", "nobcache", 1);
+		syslog(LOG_NOTICE, "topaz: fdnobcache=1: no buffer cache in the GPU's driver");
+	}
 	/* the kernel starts the GPU once the root filesystem is there: give it a moment */
 	for (int i = 0; i < 50; i++) {
 		gpu = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("VinceGPU"));
