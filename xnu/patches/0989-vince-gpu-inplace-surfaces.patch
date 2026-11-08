@@ -1,0 +1,484 @@
+From 78d83dfc9e496937fc3838fd720073e89ff748ca Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sun, 8 Nov 2026 16:37:22 +0000
+Subject: [PATCH] 0989 vince: the window server's screens in the GPU's pool,
+ drawn into in place (vinceplace=1)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/SweetFramebuffer.cpp |   3 +
+ iokit/Kernel/arm/SweetSurface.cpp     |  47 +++++-
+ iokit/Kernel/arm/SweetSurface.h       |  15 +-
+ iokit/Kernel/arm/VinceGPU.cpp         | 219 +++++++++++++++++++++++++-
+ 4 files changed, 277 insertions(+), 7 deletions(-)
+
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 4918d1b..3b5cc82 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -1535,6 +1535,9 @@ AppleCLCD::present(const uint8_t *rec)
+ 			continue;
+ 		}
+ 		(void)topaz_surface_drawn(s, 100);
++		if (s->vincePool) {
++			vince_surface_sync(s);  /* wait for the GPU, drop what the cache holds of the picture */
++		}
+ 		uintptr_t src = s->kernelAddress();
+ 		uint32_t bpe = s->bytesPerElement ? s->bytesPerElement : 4;
+ 		if (w <= 0 || h <= 0) {
+diff --git a/iokit/Kernel/arm/SweetSurface.cpp b/iokit/Kernel/arm/SweetSurface.cpp
+index 5f1a798..2ab2004 100644
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -48,6 +48,7 @@
+ 
+ /* topaz GPU (TopazAdreno.cpp): the GPU pool below 4 GiB */
+ extern "C" uint64_t topaz_gpu_pool_alloc(uint64_t size, void **va);
++extern "C" void sweet_dcache_flush(vm_offset_t addr, unsigned length);
+ extern "C" void topaz_gpu_pool_free(uint64_t pa, uint64_t size);
+ extern "C" IOMemoryDescriptor *topaz_gpu_pool_md(uint64_t pa, uint64_t size);
+ 
+@@ -294,10 +295,14 @@ SweetSurface::free()
+ 		OSSafeReleaseNULL(memory);
+ 		topaz_gpu_pool_free(scanoutPhys, poolSize);
+ 	}
++	if (vincePool && memory != NULL) {
++		OSSafeReleaseNULL(memory);
++		vince_pool_free(poolPhys, poolSize);
++	}
+ 	if (wrapped && memory != NULL) {
+ 		memory->complete();
+ 	}
+-	if (!wrapped && !gpuPool && memory != NULL && sweet_res_give(memory)) {
++	if (!wrapped && !gpuPool && !vincePool && memory != NULL && sweet_res_give(memory)) {
+ 		memory = NULL;
+ 	}
+ 	OSSafeReleaseNULL(memory);
+@@ -316,7 +321,7 @@ SweetSurface::kernelAddress()
+ 	}
+ 	IOLockLock(sweet_surface_lock);
+ 	if (kernelMap == NULL && memory != NULL) {
+-		kernelMap = memory->map(scanoutPhys || wrapped ? kIOMapDefaultCache : kIOMapWriteCombineCache);
++		kernelMap = memory->map(vincePool ? kIOMapCopybackCache : (scanoutPhys || wrapped) ? kIOMapDefaultCache : kIOMapWriteCombineCache);
+ 	}
+ 	IOLockUnlock(sweet_surface_lock);
+ 	return kernelMap != NULL ? (uintptr_t)kernelMap->getVirtualAddress() : 0;
+@@ -1065,6 +1070,44 @@ IOSurfaceRootUserClient::create(IOExternalMethodArguments *args)
+ 			topaz_gpu_pool_free(pa, take);
+ 		}
+ 	}
++	if (ret == kIOReturnSuccess && s->memory == NULL && vince_place_enabled() && s->bytesPerElement == 4 &&
++	    s->planeCount <= 1 && s->elementWidth == 1 && s->elementHeight == 1 && s->width >= 1000 && s->height >= 2000 &&
++	    s->allocSize <= (48u << 20)) {
++		char who[32];
++
++		proc_selfname(who, sizeof(who));
++		if (strcmp(who, "backboardd") == 0) {
++			/* the GPU writes whole tiles: 64 rows past the picture have pages behind them (as for the topaz pool) */
++			uint64_t take = round_page_64(s->allocSize + 64ull * s->bytesPerRow);
++			uint64_t pa = vince_pool_alloc(take);
++			IOMemoryDescriptor *md = pa != 0 ? IOMemoryDescriptor::withAddressRange(pa, take,
++			    kIODirectionInOut | kIOMemoryTypePhysical64, NULL) : NULL;
++
++			if (md != NULL) {
++				s->memory = md;
++				s->vincePool = true;
++				s->poolPhys = pa;
++				s->poolSize = take;
++				s->mapCache = kIOMapCopybackCache;
++				uintptr_t va = s->kernelAddress();
++				if (va != 0) {
++					bzero((void *)va, take);
++					sweet_dcache_flush((vm_offset_t)va, (unsigned)take);
++				}
++				if (va == 0 || !sweet_surface_publish(s)) {
++					ret = kIOReturnNoResources;
++				} else {
++					static uint32_t told;
++					if (told++ < 16) {
++						IOLog("SWEET SURF: surface %ux%u (%llu bytes) in the GPU's pool at %#llx\n", s->width, s->height,
++						    (unsigned long long)take, (unsigned long long)pa);
++					}
++				}
++			} else if (pa != 0) {
++				vince_pool_free(pa, take);
++			}
++		}
++	}
+ 	if (ret == kIOReturnSuccess && s->memory == NULL && sweet_scanout_eligible(s)) {
+ 		int slot = sweet_scanout_alloc_slot();
+ 		if (slot >= 0) {
+diff --git a/iokit/Kernel/arm/SweetSurface.h b/iokit/Kernel/arm/SweetSurface.h
+index 035789a..ac4f978 100644
+--- a/iokit/Kernel/arm/SweetSurface.h
++++ b/iokit/Kernel/arm/SweetSurface.h
+@@ -48,8 +48,11 @@ public:
+ 	bool                      gpuPool;      /* topaz GPU: memory from the GPU pool below 4 GiB (scanoutPhys = its address) */
+ 	uint64_t                  poolSize;     /* bytes taken from the GPU pool (allocSize and a guard) */
+ 	uint32_t                  drawn;        /* topaz GPU: last submission naming this surface (RedwoodGPU.cpp) */
++	bool                      vincePool;    /* vince (vinceplace=1): memory from VinceGPU's pool, which the GPU draws into in place */
++	uint64_t                  poolPhys;     /* ... its physical address (= the GPU's), */
++	uint32_t                  vinceDrawn;   /* ... and the last submission of VinceGPU that names it */
+ 
+-	bool init() APPLE_KEXT_OVERRIDE { scanoutPhys = 0; scanoutSlot = -1; values = NULL; purgeable = 0; wrapDelta = 0; wrapped = false; drawn = 0; gpuPool = false; poolSize = 0; return OSObject::init(); }
++	bool init() APPLE_KEXT_OVERRIDE { scanoutPhys = 0; scanoutSlot = -1; values = NULL; purgeable = 0; wrapDelta = 0; wrapped = false; drawn = 0; gpuPool = false; poolSize = 0; vincePool = false; poolPhys = 0; vinceDrawn = 0; return OSObject::init(); }
+ 	void free() APPLE_KEXT_OVERRIDE;
+ 
+ 	/* Kernel address of the pixels (mapped on first use), or 0. */
+@@ -77,6 +80,16 @@ SweetSurface *sweet_surface_create_buffer(uint32_t width, uint32_t height, uint3
+  */
+ void sweet_scanout_set_geometry(uint32_t w1, uint32_t h1, uint32_t w2, uint32_t h2);
+ 
++/*
++ * vince (VinceGPU.cpp): screen-sized surfaces of the window server from the GPU's pool, drawn into in place
++ * (boot-args vinceplace=1 and vincecache=1). The display waits for the GPU and drops what its cache has of the
++ * surface before it reads it (vince_surface_sync).
++ */
++extern "C" bool vince_place_enabled(void);
++extern "C" uint64_t vince_pool_alloc(uint64_t size);
++extern "C" void vince_pool_free(uint64_t pa, uint64_t size);
++extern "C" void vince_surface_sync(SweetSurface *surface);
++
+ /* Send right for the surface in task (IOSurfaceLookupFromMachPort). */
+ mach_port_name_t sweet_surface_port_in_task(SweetSurface *surface, task_t task);
+ 
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index c86f7ee..921532f 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -21,6 +21,7 @@
+ #include <mach/vm_param.h>
+ #include <sys/systm.h>
+ #include <pexpert/pexpert.h>
++#include "SweetSurface.h"
+ 
+ extern "C" {
+ uint64_t kvtophys(vm_offset_t va);
+@@ -48,6 +49,17 @@ enum {
+ 	kMsmSubmitQueueNew      = 0x4a,
+ 	kMsmSubmitQueueClose    = 0x4b,
+ 	kMsmSubmitQueueQuery    = 0x4c,
++	kVinceSurface           = 0x7e,         /* not Linux's: the memory of an IOSurface as a buffer */
++};
++
++#define kVinceDescribe  0xffffffffu
++
++struct vince_surface_req {
++	uint32_t surface;                       /* the IOSurface's ID */
++	uint32_t handle;                        /* kVinceDescribe: no buffer wanted; else, back: the buffer, */
++	uint64_t size;                          /* how big it is, */
++	uint32_t offset, rowBytes;              /* where the pixels start in it and how long a row is, */
++	uint32_t width, height, pixelFormat, planes;    /* and what they are */
+ };
+ 
+ struct msm_timespec {
+@@ -116,6 +128,7 @@ struct gpu_buffer {
+ 	uint64_t size;
+ 	uint32_t flags;
+ 	bool pooled;
++	SweetSurface *surface;  /* vinceplace=1: whose memory it is (held), else NULL */
+ 	IOMemoryMap *kmap;      /* vincecache=1: a cacheable kernel mapping, for cache maintenance */
+ };
+ 
+@@ -166,6 +179,8 @@ cacheSync(struct gpu_buffer *b)
+ #define GPU_POOL_UNIT   4096ull
+ #define GPU_POOL_UNITS  (GPU_POOL_SIZE / GPU_POOL_UNIT)
+ 
++static uint32_t gPlaceHeld = 0;         /* surfaces that hold pool memory (under gPoolLock) */
++static IOLock *gPoolLock = NULL;        /* the bits below (the surfaces give their memory back from anywhere) */
+ static uint32_t *gPoolBits = NULL;      /* one bit a unit: set = given out (under gGPULock) */
+ 
+ static bool
+@@ -184,9 +199,9 @@ poolMark(uint64_t unit, bool used)
+ 	}
+ }
+ 
+-/* the physical address of size bytes (a multiple of 4 KiB) of the pool, or 0; gGPULock held */
++/* the physical address of size bytes (a multiple of 4 KiB) of the pool, or 0; gPoolLock held */
+ static uint64_t
+-poolAlloc(uint64_t size)
++poolAllocLocked(uint64_t size)
+ {
+ 	uint64_t need = size / GPU_POOL_UNIT, run = 0;
+ 
+@@ -212,7 +227,7 @@ poolAlloc(uint64_t size)
+ }
+ 
+ static void
+-poolFree(uint64_t address, uint64_t size)
++poolFreeLocked(uint64_t address, uint64_t size)
+ {
+ 	uint64_t first = (address - GPU_POOL_PA) / GPU_POOL_UNIT;
+ 
+@@ -224,6 +239,25 @@ poolFree(uint64_t address, uint64_t size)
+ 	}
+ }
+ 
++static uint64_t
++poolAlloc(uint64_t size)
++{
++	uint64_t pa;
++
++	IOLockLock(gPoolLock);
++	pa = poolAllocLocked(size);
++	IOLockUnlock(gPoolLock);
++	return pa;
++}
++
++static void
++poolFree(uint64_t address, uint64_t size)
++{
++	IOLockLock(gPoolLock);
++	poolFreeLocked(address, size);
++	IOLockUnlock(gPoolLock);
++}
++
+ static int64_t
+ millisecondsUntil(const struct msm_timespec *when)
+ {
+@@ -291,6 +325,9 @@ VinceGPUStart(void)
+ 	if (gGPULock == NULL) {
+ 		gGPULock = IOLockAlloc();
+ 	}
++	if (gPoolLock == NULL) {
++		gPoolLock = IOLockAlloc();
++	}
+ 	gpu = OSTypeAlloc(VinceGPU);
+ 	if (gpu == NULL || provider == NULL || !gpu->init() || !gpu->attach(provider)) {
+ 		OSSafeReleaseNULL(gpu);
+@@ -310,6 +347,78 @@ VinceGPUStart(void)
+ 	}
+ }
+ 
++/*
++ * vinceplace=1 (with vincecache=1, which the cached maps need): the window server's screen-sized surfaces come from
++ * the pool and the GPU draws into them in place, instead of the frames being read back by the processor.
++ */
++bool
++vince_place_enabled(void)
++{
++	static int mode = -1;
++
++	if (mode < 0) {
++		uint32_t place = 0;
++		mode = PE_parse_boot_argn("vinceplace", &place, sizeof(place)) && place && cacheMode();
++	}
++	return mode == 1 && gPoolLock != NULL && vince_gpu_ready();
++}
++
++uint64_t
++vince_pool_alloc(uint64_t size)
++{
++	uint64_t pa = 0;
++
++	if (gPoolLock == NULL || size == 0 || size > GPU_BUFFER_MAX) {
++		return 0;
++	}
++	IOLockLock(gPoolLock);
++	/* the buffers of the library need room too: the screens take at most 8 of the 192 MiB's 12 */
++	if (gPlaceHeld < 8) {
++		pa = poolAllocLocked(size);
++		if (pa != 0) {
++			gPlaceHeld++;
++		}
++	}
++	IOLockUnlock(gPoolLock);
++	return pa;
++}
++
++void
++vince_pool_free(uint64_t pa, uint64_t size)
++{
++	IOLockLock(gPoolLock);
++	poolFreeLocked(pa, size);
++	if (gPlaceHeld != 0) {
++		gPlaceHeld--;
++	}
++	IOLockUnlock(gPoolLock);
++}
++
++/*
++ * The display is about to read the picture of a surface the GPU draws into: wait for the last submission that names
++ * it, then drop what the processor's cache holds of it (the GPU does not snoop it), so that the reads go to RAM.
++ */
++void
++vince_surface_sync(SweetSurface *s)
++{
++	uint32_t fence = s->vinceDrawn;
++	uintptr_t va;
++
++	if (!s->vincePool) {
++		return;
++	}
++	if (fence != 0 && !gpuWait(fence, 100)) {
++		static uint32_t told;
++		if (told++ < 8) {
++			IOLog("VinceGPU: the display did not wait long enough for fence %u\n", fence);
++		}
++	}
++	va = s->kernelAddress();
++	if (va != 0) {
++		sweet_dcache_flush((vm_offset_t)va, (unsigned)s->poolSize);
++	}
++}
++
+ void
+ VinceGPUStop(void)
+ {
+@@ -508,6 +617,7 @@ private:
+ 	struct gpu_buffer *buffer(uint32_t handle);
+ 	IOReturn gemNew(struct msm_gem_new *request);
+ 	IOReturn gemInfo(struct msm_gem_info *request);
++	IOReturn surfaceBuffer(struct vince_surface_req *request);
+ 	IOReturn submit(struct msm_gem_submit *request);
+ 	void freeBuffer(struct gpu_buffer *b);
+ 
+@@ -548,6 +658,10 @@ VinceGPUUserClient::freeBuffer(struct gpu_buffer *b)
+ 	if (b->memory != NULL) {
+ 		b->memory->release();
+ 		b->memory = NULL;
++		if (b->surface != NULL) {
++			b->surface->release();          /* (its pool memory goes back when nobody else holds the surface) */
++			b->surface = NULL;
++		}
+ 		if (b->pooled) {
+ 			poolFree(b->address, b->size);
+ 		}
+@@ -669,6 +783,90 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 	return kIOReturnSuccess;
+ }
+ 
++/*
++ * The memory of an IOSurface as a buffer (vinceplace=1): only a surface that SweetSurface made from the pool (the
++ * window server's screen-sized ones) is one the GPU can address; every other is refused, and the library then fills
++ * a texture from it and reads the frame back as before. The surface is held for as long as the buffer is there. A
++ * surface that already is a buffer of this client's is that buffer again. kVinceDescribe asks what the buffer would
++ * be like and makes none.
++ */
++IOReturn
++VinceGPUUserClient::surfaceBuffer(struct vince_surface_req *request)
++{
++	SweetSurface *s = sweet_surface_copy(request->surface);
++	IOMemoryDescriptor *memory;
++	struct gpu_buffer *b = NULL;
++	bool describe = request->handle == kVinceDescribe;
++
++	if (s == NULL) {
++		return kIOReturnNotFound;
++	}
++	if (!s->vincePool || s->memory == NULL || s->poolSize == 0 || s->poolSize > GPU_BUFFER_MAX || fBuffers == NULL) {
++		s->release();
++		return kIOReturnUnsupported;
++	}
++	request->size = s->poolSize;
++	request->offset = s->offset;
++	request->rowBytes = s->bytesPerRow;
++	request->width = s->width;
++	request->height = s->height;
++	request->pixelFormat = s->pixelFormat;
++	request->planes = s->planeCount;
++	if (describe) {
++		request->handle = 0;
++		s->release();
++		return kIOReturnSuccess;
++	}
++
++	memory = IOMemoryDescriptor::withAddressRange(s->poolPhys, s->poolSize, kIODirectionInOut | kIOMemoryTypePhysical64, NULL);
++	if (memory == NULL) {
++		s->release();
++		return kIOReturnNoMemory;
++	}
++	IOLockLock(gGPULock);
++	for (uint32_t i = 0; i < GPU_BUFFERS; i++) {
++		if (fBuffers[i].memory != NULL && fBuffers[i].surface == s) {
++			b = &fBuffers[i];
++			request->handle = i + 1;
++			break;
++		}
++	}
++	if (b != NULL) {
++		memory->release();
++		s->release();
++	} else {
++		for (uint32_t n = 0; n < GPU_BUFFERS; n++) {
++			uint32_t h = (fNextBuffer + n) % GPU_BUFFERS;
++			if (fBuffers[h].memory == NULL) {
++				b = &fBuffers[h];
++				fNextBuffer = h + 1;
++				request->handle = h + 1;
++				break;
++			}
++		}
++		if (b != NULL) {
++			bzero(b, sizeof(*b));
++			b->memory = memory;
++			b->surface = s;
++			b->address = s->poolPhys;
++			b->size = s->poolSize;
++			b->pooled = false;
++		}
++	}
++	IOLockUnlock(gGPULock);
++	if (b == NULL) {
++		memory->release();
++		s->release();
++		return kIOReturnNoMemory;
++	}
++	static uint32_t told;
++	if (told++ < 16) {
++		IOLog("VinceGPU: IOSurface %u (%ux%u) is buffer %u at %#llx\n", request->surface, request->width, request->height,
++		    request->handle, (unsigned long long)s->poolPhys);
++	}
++	return kIOReturnSuccess;
++}
++
+ IOReturn
+ VinceGPUUserClient::gemInfo(struct msm_gem_info *request)
+ {
+@@ -737,6 +935,15 @@ VinceGPUUserClient::submit(struct msm_gem_submit *request)
+ 	}
+ 
+ 	request->fence = vince_gpu_submit(addresses, words, count);
++	if (request->fence != 0) {
++		/* the display waits for the GPU to be done with a surface before it reads it (vince_surface_sync) */
++		for (uint32_t i = 0; i < request->nr_bos; i++) {
++			struct gpu_buffer *b = buffer(bos[i].handle);
++			if (b != NULL && b->surface != NULL) {
++				b->surface->vinceDrawn = request->fence;
++			}
++		}
++	}
+ 	IOLockUnlock(gGPULock);
+ 
+ 	if (request->fence == 0) {
+@@ -764,7 +971,7 @@ VinceGPUUserClient::clientMemoryForType(UInt32 type, IOOptionBits *options, IOMe
+ 	if (b != NULL && b->memory != NULL) {
+ 		b->memory->retain();
+ 		*memory = b->memory;
+-		*options = b->pooled ? (cacheMode() ? kIOMapCopybackCache : kIOMapWriteCombineCache) : 0;
++		*options = (b->pooled || b->surface != NULL) ? (cacheMode() ? kIOMapCopybackCache : kIOMapWriteCombineCache) : 0;
+ 		ret = kIOReturnSuccess;
+ 	}
+ 	IOLockUnlock(gGPULock);
+@@ -781,6 +988,7 @@ VinceGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments
+ 		struct msm_gem_info gemInfo;
+ 		struct msm_gem_cpu_prep cpuPrep;
+ 		struct msm_gem_submit submit;
++		struct vince_surface_req surface;
+ 		struct msm_wait_fence waitFence;
+ 		struct msm_gem_madvise madvise;
+ 		struct msm_submitqueue queue;
+@@ -829,6 +1037,9 @@ VinceGPUUserClient::externalMethod(uint32_t selector, IOExternalMethodArguments
+ 			IOLockUnlock(gGPULock);
+ 		}
+ 		break;
++	case kVinceSurface:
++		ret = surfaceBuffer(&r.surface);
++		break;
+ 	case kMsmGemSubmit:
+ 		ret = submit(&r.submit);
+ 		break;
+-- 
+2.43.0
+
