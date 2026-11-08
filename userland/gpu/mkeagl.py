@@ -18,7 +18,7 @@ eagl.c has not written by hand (counts the call, passes it on), eagl_slot_name()
 import re, sys
 import xml.etree.ElementTree as ET
 
-HEADER = 0x20
+HEADER = 0x20   # the stubs of iOS 16.7 are 0x20 above the offsets CoreAnimation uses on the table of getMacroContextPrivate (that one is the context object + 0x20)
 slots_file, xml_file, c_file = sys.argv[1:4]
 
 slots = {}      # offset (eagl numbering) -> [names]

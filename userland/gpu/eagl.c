@@ -240,7 +240,6 @@ struct image {
 };
 
 struct eagl {
-	void *header[4];                /* iOS 16.7's table has four words before the context (its entries are at 0x20 more than in older iOS) */
 	void *table[SLOTS];             /* [0] is the context itself: what every entry gets as its first argument */
 	id object;                      /* the EAGLContext */
 	struct redwood_gl *gl;
@@ -430,8 +429,8 @@ static long
 eagl_missing_raw(unsigned offset, unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3)
 {
 	if (slot_calls[offset / 8]++ == 0) {
-		say("redwood-gl: CALLED AND NOT THERE: entry %#x (iOS offset %#x), %s, arguments %#lx %#lx %#lx %#lx (our context %p)\n",
-		    offset, offset + 0x20, eagl_slot_name(offset), a0, a1, a2, a3, (void *)current);
+		say("redwood-gl: CALLED AND NOT THERE: entry %#x, %s, arguments %#lx %#lx %#lx %#lx (our context %p)\n",
+		    offset, eagl_slot_name(offset), a0, a1, a2, a3, (void *)current);
 	}
 	return 0;
 }
@@ -3434,19 +3433,6 @@ my_glDeleteProgram(void *context, GLuint name)
 
 _Static_assert(EAGL_TABLE_SIZE <= SLOTS * 8, "the table has grown");
 
-/* The four words before the context in iOS 16.7's table: what they are is not known, so each says when it is called. */
-#define HEADER_STUB(n) \
-	static long eagl_header_##n(void *context) \
-	{ \
-		(void)context; \
-		say("redwood-gl: CALLED AND NOT THERE: header word %d (table at -0x%x)\n", n, (4 - n) * 8); \
-		return 0; \
-	}
-HEADER_STUB(1)
-HEADER_STUB(2)
-HEADER_STUB(3)
-
-
 /* ---- EAGLContext ---------------------------------------------------------------------------------- */
 
 static id
@@ -3473,10 +3459,6 @@ my_initWithAPI(id self, SEL selector, unsigned long api, id properties)
 	e->api = api;
 	e->table[0] = e;
 	eagl_fill_table(e->table);
-	e->header[0] = e;               /* what CoreAnimation passes as the first argument when it calls an entry itself */
-	e->header[1] = (void *)eagl_header_1;
-	e->header[2] = (void *)eagl_header_2;
-	e->header[3] = (void *)eagl_header_3;
 	say("redwood-gl: table: %d entries, built " __DATE__ " " __TIME__ "\n", EAGL_TABLE_SIZE / 8);
 	contexts[place] = e;
 	say("redwood-gl: an OpenGL ES %lu context for CoreAnimation, by %s: %s; %s; shaders %s\n", api, redwood_gl_library(),
@@ -3509,7 +3491,7 @@ my_getMacroContextPrivate(id self, SEL selector)
 	struct eagl *e = context_of(self);
 
 	(void)selector;
-	return e ? (void *)e->header : NULL;
+	return e ? (void *)e->table : NULL;     /* (iOS: the context's own object + 0x20; its stubs are 0x20 more than these offsets) */
 }
 
 /* (the types are the method's own: the last three arrive on the stack, where sizes matter) */
