@@ -430,8 +430,8 @@ static long
 eagl_missing_raw(unsigned offset, unsigned long a0, unsigned long a1, unsigned long a2, unsigned long a3)
 {
 	if (slot_calls[offset / 8]++ == 0) {
-		say("redwood-gl: CALLED AND NOT THERE: entry %#x (iOS offset %#x), %s, arguments %#lx %#lx %#lx %#lx\n", offset,
-		    offset + 0x20, eagl_slot_name(offset), a0, a1, a2, a3);
+		say("redwood-gl: CALLED AND NOT THERE: entry %#x (iOS offset %#x), %s, arguments %#lx %#lx %#lx %#lx (our context %p)\n",
+		    offset, offset + 0x20, eagl_slot_name(offset), a0, a1, a2, a3, (void *)current);
 	}
 	return 0;
 }
@@ -3442,7 +3442,6 @@ _Static_assert(EAGL_TABLE_SIZE <= SLOTS * 8, "the table has grown");
 		say("redwood-gl: CALLED AND NOT THERE: header word %d (table at -0x%x)\n", n, (4 - n) * 8); \
 		return 0; \
 	}
-HEADER_STUB(0)
 HEADER_STUB(1)
 HEADER_STUB(2)
 HEADER_STUB(3)
@@ -3474,7 +3473,7 @@ my_initWithAPI(id self, SEL selector, unsigned long api, id properties)
 	e->api = api;
 	e->table[0] = e;
 	eagl_fill_table(e->table);
-	e->header[0] = (void *)eagl_header_0;
+	e->header[0] = e;               /* what CoreAnimation passes as the first argument when it calls an entry itself */
 	e->header[1] = (void *)eagl_header_1;
 	e->header[2] = (void *)eagl_header_2;
 	e->header[3] = (void *)eagl_header_3;
