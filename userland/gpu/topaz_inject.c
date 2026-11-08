@@ -217,7 +217,6 @@ container_manager_fixes(void)
  * What the buffers of the GPU look like in this process: IOConnectMapMemory64 is interposed to write down the
  * first maps (connection, type, address, size and what the VM says about the protection).
  */
-#include <mach/mach_vm.h>
 
 static IOReturn
 topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask, mach_vm_address_t *address,
@@ -227,8 +226,8 @@ topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask
 	IOReturn r = IOConnectMapMemory64(connect, memoryType, intoTask, address, size, options);
 
 	if (told < 24) {
-		mach_vm_address_t at = r == 0 ? *address : 0;
-		mach_vm_size_t length = 0;
+		vm_address_t at = r == 0 ? (vm_address_t)*address : 0;
+		vm_size_t length = 0;
 		vm_region_basic_info_data_64_t info;
 		mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
 		mach_port_t object = MACH_PORT_NULL;
@@ -236,7 +235,7 @@ topaz_map_memory(io_connect_t connect, uint32_t memoryType, task_port_t intoTask
 
 		memset(&info, 0, sizeof(info));
 		if (r == 0) {
-			k = mach_vm_region(mach_task_self(), &at, &length, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count,
+			k = vm_region_64(mach_task_self(), &at, &length, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count,
 			    &object);
 		}
 		told++;
