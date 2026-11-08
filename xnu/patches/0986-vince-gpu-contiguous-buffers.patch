@@ -1,0 +1,54 @@
+From 1fe29b824c108b5520973be39ed544e690b75334 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Sun, 8 Nov 2026 06:13:56 +0000
+Subject: [PATCH] 0986 vince: GPU buffers are one piece of physical memory
+
+GEM_NEW handed out the physical address of the first page of a buffer made of pages from all over RAM; the GPU, which has no IOMMU here, runs on from it, so a buffer bigger than a page was written over page tables (compressed PTE panic). Buffers are now physically contiguous and checked to be, or refused.
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 26 +++++++++++++++++++++++---
+ 1 file changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 243a80c..47ad4fe 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -494,13 +494,33 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 		return kIOReturnNoMemory;
+ 	}
+ 
+-	memory = IOBufferMemoryDescriptor::inTaskWithOptions(
++	/*
++	 * The GPU reads and writes physical addresses in one run from the buffer's first one (there is no IOMMU for it),
++	 * so the memory must be one piece: with pages from all over RAM a buffer bigger than a page made the GPU write
++	 * over whatever came after the first page (page tables, in the panic that showed it).
++	 */
++	memory = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(
+ 	    kernel_task,
+-	    kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache,
++	    kIODirectionInOut | kIOMemoryKernelUserShared | kIOMapWriteCombineCache | kIOMemoryPhysicallyContiguous,
+ 	    (vm_size_t)size,
+-	    PAGE_SIZE);
++	    0xfffff000ULL);
+ 
++	if (memory != NULL) {
++		IOByteCount segment = 0;
++		addr64_t first = memory->getPhysicalSegment(0, &segment, kIOMemoryMapperNone);
++
++		if (first == 0 || segment < size || first + size > 0x100000000ULL) {
++			IOLog("VinceGPU: GEM_NEW %llu bytes: memory is not one piece (%llu), refused\n", size, (uint64_t)segment);
++			memory->release();
++			memory = NULL;
++		}
++	} else {
++		IOLog("VinceGPU: GEM_NEW %llu bytes: no contiguous memory\n", size);
++	}
+ 	if (memory == NULL) {
++		IOLockLock(gGPULock);
++		bzero(b, sizeof(*b));
++		IOLockUnlock(gGPULock);
+ 		return kIOReturnNoMemory;
+ 	}
+ 
+-- 
+2.43.0
+
