@@ -1,0 +1,90 @@
+From 5b5bd72f36dd2aee629a49f2c33ca01b278ae4bf Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Sun, 8 Nov 2026 17:53:56 +0000
+Subject: [PATCH] 0991 vince: log what fills the GPU pool, do not rescan RAM
+ for buffers that never come
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 25 ++++++++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index a90fc60..2f152b9 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -128,11 +128,14 @@ struct gpu_buffer {
+ 	uint64_t size;
+ 	uint32_t flags;
+ 	bool pooled;
++	uint32_t seq;           /* which GEM_NEW made it (for the log when the pool is full) */
+ 	SweetSurface *surface;  /* vinceplace=1: whose memory it is (held), else NULL */
+ 	IOMemoryMap *kmap;      /* vincecache=1: a cacheable kernel mapping, for cache maintenance */
+ };
+ 
+ static IOLock *gGPULock = NULL;
++static uint32_t gSeq = 0;               /* GEM_NEWs so far (under gGPULock) */
++static bool gFallbackDead = false;      /* RAM outside the pool has had no 1 MiB piece: it is not asked again */
+ 
+ 
+ /*
+@@ -772,13 +775,26 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 		static uint32_t told;
+ 		if (told++ < 6) {
+ 			/* (for the log: what the buffers of this client hold) */
+-			uint64_t held = 0, count = 0;
++			uint64_t held = 0, count = 0, bytes[5] = { 0, 0, 0, 0, 0 }, old = 0;
++			static const uint64_t edge[4] = { 64u << 10, 256u << 10, 1u << 20, 4u << 20 };
+ 			for (uint32_t i = 0; i < GPU_BUFFERS; i++) {
+ 				if (fBuffers[i].memory != NULL && fBuffers[i].pooled) {
++					uint32_t k = 0;
+ 					held += fBuffers[i].size;
+ 					count++;
++					while (k < 4 && fBuffers[i].size > edge[k]) {
++						k++;
++					}
++					bytes[k] += fBuffers[i].size;
++					if (gSeq - fBuffers[i].seq > 2000) {
++						old += fBuffers[i].size;
++					}
+ 				}
+ 			}
++			IOLog("VinceGPU: ... by size: up to 64K %llu KiB, 256K %llu, 1M %llu, 4M %llu, more %llu; made more than 2000 "
++			    "GEM_NEWs ago: %llu KiB (of %u)\n", (unsigned long long)(bytes[0] >> 10), (unsigned long long)(bytes[1] >> 10),
++			    (unsigned long long)(bytes[2] >> 10), (unsigned long long)(bytes[3] >> 10), (unsigned long long)(bytes[4] >> 10),
++			    (unsigned long long)(old >> 10), gSeq);
+ 			IOLockLock(gPoolLock);
+ 			poolReport("has no", size);
+ 			IOLockUnlock(gPoolLock);
+@@ -798,6 +814,9 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 	}
+ 
+ 	/* the pool has no piece that big: memory of the VM, if it is one piece (it hardly ever is) */
++	if (memory == NULL && gFallbackDead && size >= (1u << 20)) {
++		return kIOReturnNoMemory;               /* (RAM of the VM has no pieces: each try takes a second of scanning) */
++	}
+ 	if (memory == NULL) {
+ 		IOBufferMemoryDescriptor *buffer = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(
+ 		    kernel_task,
+@@ -816,6 +835,9 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 			}
+ 		} else {
+ 			IOLog("VinceGPU: GEM_NEW %llu bytes: the pool and RAM have no piece that big\n", size);
++			if (size >= (1u << 20)) {
++				gFallbackDead = true;
++			}
+ 		}
+ 		memory = buffer;
+ 	}
+@@ -839,6 +861,7 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 	}
+ 	b->size = size;
+ 	b->flags = request->flags;
++	b->seq = ++gSeq;
+ 	IOLockUnlock(gGPULock);
+ 
+ 	return kIOReturnSuccess;
+-- 
+2.43.0
+
