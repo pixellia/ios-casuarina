@@ -731,6 +731,24 @@ surface_to_texture(struct eagl *e, struct image *image)
 		return;
 	}
 	base = planar ? IOSurfaceGetBaseAddressOfPlane(surface, image->plane) : IOSurfaceGetBaseAddress(surface);
+	{
+		static unsigned told;
+		size_t allocated = IOSurfaceGetAllocSize(surface), needed = row * (size_t)image->height;
+
+		if (told++ < 12 || needed > allocated) {
+			say("redwood-gl: surface to texture: base %p, row %zu, %d x %d, %zu bytes needed of %zu, plane %d, "
+			    "invert %d, alpha first %d\n", (void *)base, row, image->width, image->height, needed, allocated,
+			    planar ? image->plane : -1, image->invert, alpha_first);
+		}
+		if (base == NULL || needed > allocated) {
+			say("redwood-gl: surface to texture: not done (no memory, or less than the picture needs)\n");
+			IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+			return;
+		}
+		/* touch the first and the last byte now, so that a page that is not there ends the run on a line of its own */
+		say("redwood-gl: surface to texture: first byte %u, last %u\n", (unsigned)((volatile uint8_t *)base)[0],
+		    (unsigned)((volatile uint8_t *)base)[needed - 1]);
+	}
 	if ((image->invert || alpha_first) && (flipped = calloc(row, (size_t)image->height)) != NULL) {
 		for (GLsizei y = 0; y < image->height; y++) {
 			const uint8_t *from = base + row * (size_t)(image->invert ? image->height - 1 - y : y);
