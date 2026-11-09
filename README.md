@@ -17,7 +17,8 @@ Read this first, it will save you an evening.
   `fastboot boot`, so nothing but `userdata` is ever flashed. Do it only on a phone you own and can restore.
 - You need an **unlocked bootloader**, a Linux PC with `fastboot`, a **macOS GitHub runner** to build XNU
   (Actions, free for public repos), and **your own iOS IPSW** (none of Apple's files are in this repository).
-- There is **no serial console**. Debugging is done by photographing the phone's screen. Patience required.
+- There is **no serial console**. Debugging is done by log.txt (use sh tools/sweet-log-pull.sh log.txt in terminal when you in recovery).
+!Patience required!
 - Only the **4 GB RAM / 64 GB storage** model has been tested.
 - Most of this code was written with an AI assistant (see [How this was made](#how-this-was-made)). Read before you trust.
 
