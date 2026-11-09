@@ -69,6 +69,10 @@ jobs:
           # (mig, ctf tools) needs a single executable, so point at wrappers
           sed -i '' 's|export CC="$(xcrun -find clang)"|export CC="$CCACHE_WRAP/clang"|; s|export CXX="$(xcrun -find clang++)"|export CXX="$CCACHE_WRAP/clang++"|' dxb/build.sh
           grep -c 'export CC="$CCACHE_WRAP/clang"' dxb/build.sh
+          # GitHub web /releases/download/ on dortania/KdkSupportPkg times out with HTTP 504;
+          # use the GitHub REST API asset endpoint (Accept: application/octet-stream) instead.
+          sed -i '' 's|curl --progress-bar --max-time 900 --connect-timeout 60 -L -o /tmp/KDK.dmg "${KDK_URL}"|KDK_ASSET_URL="https://api.github.com/repos/dortania/KdkSupportPkg/releases/assets/135995669"; curl --fail --retry 3 --progress-bar --max-time 900 --connect-timeout 60 -H "Accept: application/octet-stream" -L -o /tmp/KDK.dmg "${KDK_ASSET_URL}"|' dxb/build.sh
+          grep -c 'KDK_ASSET_URL' dxb/build.sh
           ls dxb/patches
 
       - name: Deps
