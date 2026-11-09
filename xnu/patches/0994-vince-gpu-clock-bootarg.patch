@@ -1,0 +1,53 @@
+From 22044f285dced9e5a12ff54dc7171998e67ebd2b Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Mon, 9 Nov 2026 12:36:15 +0000
+Subject: [PATCH] 0994 vince: vincegpucfg boot-arg to try other GFX3D clock
+ dividers
+
+The GPU runs on GFX3D CFG 0x507 (source 5, divider 7), which is slow for an
+Adreno 506. vincegpucfg=0x50N picks another divider; the default is unchanged.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index dcc04c7..1fa772b 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -409,14 +409,28 @@ step5_enable_clocks(void)
+ {
+ 	int i;
+ 	uint32_t gfx_cbcr, ahb_cbcr;
++	uint32_t gfx_cfg = 0x507u;
++	uint32_t arg = 0;
++
++	/*
++	 * vincegpucfg=0x50N: raw GFX3D RCG CFG, source 5 (as LK left it, 0x507) with HID_DIV N (1..31),
++	 * for finding how fast the GPU may run. The default stays 0x507. Anything else is refused.
++	 */
++	if (PE_parse_boot_argn("vincegpucfg", &arg, sizeof(arg))) {
++		if ((arg & ~0x1fu) == 0x500u && (arg & 0x1fu) != 0) {
++			gfx_cfg = arg;
++		} else {
++			printf("adreno: step 5: vincegpucfg=%#x refused (need 0x501..0x51f), keeping 0x507\n", arg);
++		}
++	}
+ 
+ 	printf("adreno: step 5: enabling GCC OXILI, BIMC and Crypto branch clocks\n");
+ 
+ 	/* 1. Ensure GPLL0 active vote */
+ 	reg_write(gcc_va, GCC_APCS_GPLL_ENA_VOTE, reg_read(gcc_va, GCC_APCS_GPLL_ENA_VOTE) | 1u);
+ 
+-	/* 2. Configure GFX3D Core RCG: 100 MHz via GPLL0_DIV2 (0x507) */
+-	reg_write(gcc_va, GCC_GFX3D_CFG_RCGR, 0x507u);
++	/* 2. Configure GFX3D Core RCG: source 5 with the divider from gfx_cfg (default 0x507, about 100 MHz) */
++	reg_write(gcc_va, GCC_GFX3D_CFG_RCGR, gfx_cfg);
+ 	reg_write(gcc_va, GCC_GFX3D_CMD_RCGR, reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) | (1u << 0));
+ 	for (i = 0; i < 1000; i++) {
+ 		if (!(reg_read(gcc_va, GCC_GFX3D_CMD_RCGR) & (1u << 0))) {
+-- 
+2.43.0
+
