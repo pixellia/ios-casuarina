@@ -1,0 +1,33 @@
+From 413fb09cf20e9267c3e96696bd65d6563a708816 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Mon, 9 Nov 2026 10:41:55 +0000
+Subject: [PATCH] 0993 vince: rows of the default surface in the GPU pool are a
+ multiple of 128 bytes
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/SweetSurface.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/iokit/Kernel/arm/SweetSurface.cpp b/iokit/Kernel/arm/SweetSurface.cpp
+index c0769b4..394e5e9 100644
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -492,9 +492,11 @@ sweet_surface_create_buffer(uint32_t width, uint32_t height, uint32_t pixelForma
+ 	if (vince_place_enabled()) {
+ 		/*
+ 		 * vinceplace=1: the default surface, which the window server draws every other frame into, is in the GPU's pool
+-		 * too, with rows of 64 bytes (what the GPU addresses) and the 64 rows past the picture that its tiles run into.
++		 * too, with the 64 rows past the picture that the GPU's tiles run into. Its rows are of a multiple of 128 bytes:
++		 * the window server's own surface has those (4608) and is drawn into in place, this one with rows of 64
++		 * (4544) was refused by the library every time (2340 of 2340 frames copied in the last log).
+ 		 */
+-		uint32_t row = (width * 4 + 63) & ~63u;
++		uint32_t row = (width * 4 + 127) & ~127u;
+ 		uint64_t take = round_page_64((uint64_t)row * (height + 64));
+ 		uint64_t pa = vince_pool_alloc(take);
+ 		IOMemoryDescriptor *md = pa != 0 ? IOMemoryDescriptor::withAddressRange(pa, take,
+-- 
+2.43.0
+
