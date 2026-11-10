@@ -1,0 +1,37 @@
+From a2154c405b9e172b54457a9d1b77900359283f61 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 06:18:57 +0000
+Subject: [PATCH] 0997 vince: print where vm_pages[] is and how many entries
+ pmap_startup made
+
+Diagnostic for vinceram3g=1: first page number, entry count, hole entries, real pages and the
+physical range of the array, one line from pmap_startup.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ osfmk/vm/vm_resident.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/osfmk/vm/vm_resident.c b/osfmk/vm/vm_resident.c
+index 01646ca..040a1f9 100644
+--- a/osfmk/vm/vm_resident.c
++++ b/osfmk/vm/vm_resident.c
+@@ -1616,6 +1616,14 @@ pmap_startup(
+ 
+ 	absolutetime_to_nanoseconds(mach_absolute_time(), &now_ns);
+ 	printf("pmap_startup() init/release time: %lld microsec\n", (now_ns - start_ns) / NSEC_PER_USEC);
++#if defined(__arm64__)
++	if (vince_gap_end != 0) {
++		printf("VINCE RAM: pmap_startup first ppn 0x%x, %u entries (%u of them the hole), %u real pages, array pa 0x%llx..0x%llx\n",
++		    vm_first_phys_ppnum, vm_pages_count, vince_gap_entries, vm_page_pages,
++		    (unsigned long long)ptoa_64(pmap_find_phys(kernel_pmap, (vm_offset_t)vm_pages)),
++		    (unsigned long long)ptoa_64(pmap_find_phys(kernel_pmap, (vm_offset_t)vm_pages)) + (unsigned long long)npages * sizeof(*vm_pages));
++	}
++#endif
+ 	printf("pmap_startup() delayed init/release of %d pages\n", vm_delayed_count);
+ 
+ #if defined(__LP64__)
+-- 
+2.43.0
+
