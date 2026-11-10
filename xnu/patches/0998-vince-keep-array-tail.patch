@@ -1,0 +1,38 @@
+From 2a1e80944842bf6fd36689bf6bcbb995bf862022 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 10:58:47 +0000
+Subject: [PATCH] 0998 vince: do not free the unused end of vm_pages[] with the
+ second bank
+
+With vinceram3g=1 the array is sized for the whole span, so its unused end is a few hundred
+pages. ml_static_mfree() hands them to the VM while their kernel mappings are still in the pv
+lists, and pmap_assert_free() panics when one is reused (0x232ac000). Keep them instead.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ osfmk/vm/vm_resident.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/osfmk/vm/vm_resident.c b/osfmk/vm/vm_resident.c
+index 040a1f9..704a601 100644
+--- a/osfmk/vm/vm_resident.c
++++ b/osfmk/vm/vm_resident.c
+@@ -775,6 +775,14 @@ vm_free_delayed_pages(void)
+ 		start_free_va = ((start_free_va + I386_LPGMASK) & ~I386_LPGMASK);
+ 	}
+ #endif
++	if (vince_gap_end != 0) {
++		/*
++		 * vince: with the second bank the array is sized for the whole span, so the unused end
++		 * is a few hundred pages. ml_static_mfree() would hand them to the VM with their kernel
++		 * mappings still in the pv lists and pmap_assert_free() panics when they are reused.
++		 * Keep them (under a MiB).
++		 */
++	} else
+ 	if (start_free_va < (vm_offset_t)vm_page_array_ending_addr) {
+ 		free_size = trunc_page((vm_offset_t)vm_page_array_ending_addr - start_free_va);
+ 		if (free_size > 0) {
+-- 
+2.43.0
+
