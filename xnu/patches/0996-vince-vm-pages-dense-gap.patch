@@ -1,0 +1,85 @@
+From 9498b8e157712895a17a301b33667748c79c3ae0 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 06:02:37 +0000
+Subject: [PATCH] 0996 vince: keep vm_pages[] dense across the hole between two
+ RAM banks
+
+The page number of a vm_pages[] entry is its index plus the first page number, so the
+array cannot skip the hole between the two banks (vinceram3g=1): the first page of the
+second bank got the wrong number and vm_page_init asserted. pmap_startup now sizes the
+array over the whole span and fills the hole with empty entries marked as retired, which
+are never free and never used.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ osfmk/vm/vm_resident.c | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/osfmk/vm/vm_resident.c b/osfmk/vm/vm_resident.c
+index 6394730..01646ca 100644
+--- a/osfmk/vm/vm_resident.c
++++ b/osfmk/vm/vm_resident.c
+@@ -309,6 +309,8 @@ SECURITY_READ_ONLY_LATE(vm_page_t) vm_page_array_beginning_addr;
+ vm_page_t                          vm_page_array_ending_addr;
+ 
+ unsigned int    vm_pages_count = 0;
++static unsigned int vince_gap_entries = 0;      /* empty vm_pages[] entries for the hole between two banks */
++extern pmap_paddr_t vince_gap_end;
+ 
+ /*
+  *	Resident pages that represent real memory
+@@ -1436,6 +1438,12 @@ pmap_startup(
+ #endif /* defined(__arm64__) */
+ 	mem_sz += round_page(virtual_space_start) - virtual_space_start;        /* Account for any slop */
+ 	npages = (uint_t)(mem_sz / (PAGE_SIZE + sizeof(*vm_pages)));    /* scaled to include the vm_page_ts */
++#if defined(__arm64__)
++	if (vince_gap_end != 0) {
++		/* vince: one entry for every page of the span, the hole included */
++		npages = (uint_t)(mem_sz / PAGE_SIZE);
++	}
++#endif
+ 
+ 
+ 	vm_pages = (vm_page_t) pmap_steal_freeable_memory(npages * sizeof *vm_pages);
+@@ -1559,6 +1567,28 @@ pmap_startup(
+ 		}
+ #endif /* defined(__arm64__) */
+ 
++#if defined(__arm64__)
++		/*
++		 * vince: the physical page number of an entry in vm_pages[] is its index plus
++		 * vm_first_phys_ppnum, so the array must be dense. A hole in physical memory
++		 * (vinceram3g) gets empty entries marked as retired: never free, never used.
++		 */
++		if (vince_gap_end != 0 && i != 0) {
++			uint_t idx = (uint_t)(phys_page - vm_first_phys_ppnum);
++			if (idx >= npages) {
++				break;
++			}
++			if (idx > i) {
++				bzero(&vm_pages[i], (idx - i) * sizeof(vm_pages[0]));
++				for (; i < idx; i++) {
++					vm_pages[i].vmp_error = TRUE;
++				}
++				vince_gap_entries += idx - vm_pages_count;
++				vm_pages_count = idx;
++			}
++		}
++#endif /* defined(__arm64__) */
++
+ #if defined(__x86_64__)
+ 		/* The x86 clump freeing code requires increasing ppn's to work correctly */
+ 		if (i > 0) {
+@@ -1574,7 +1604,7 @@ pmap_startup(
+ 			vm_page_release_startup(&vm_pages[i]);
+ 		}
+ 	}
+-	vm_page_pages = vm_pages_count; /* used to report to user space */
++	vm_page_pages = vm_pages_count - vince_gap_entries; /* used to report to user space */
+ 
+ 	if (!vm_himemory_mode) {
+ 		do {
+-- 
+2.43.0
+
