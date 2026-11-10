@@ -1,0 +1,184 @@
+From 41f4d02bb4567cf64c618a960f5e004e28be7f20 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 00:31:03 +0000
+Subject: [PATCH] 0995 vince: vinceram3g=1 adds the 1.5 GiB bank at 0xa0000000
+ to the VM
+
+XNU only used the first 1.5 GiB of the phone's RAM. With vinceram3g=1 the second bank
+(0xa0000000..0xffffffff) becomes managed memory next to the first one; the hole between
+them (the GPU carve-outs, firmware, the splash framebuffer) is skipped by the page
+allocator, is not valid for the pmap and gets no mapping in the physical aperture.
+boot_args and the bootstrap page tables are unchanged. Off by default.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c     |  3 +++
+ osfmk/arm/pmap/pmap.c      |  7 ++++++
+ osfmk/arm/pmap/pmap_data.h |  5 ++++-
+ osfmk/arm64/arm_vm_init.c  | 45 ++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index 1fa772b..dd3e44c 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1033,7 +1033,10 @@ adreno_run(void)
+ {
+ 	uint32_t arg = 0;
+ 	uint32_t i;
++	extern uint64_t max_mem;
++	extern unsigned int vm_page_free_count;
+ 
++	printf("VINCE RAM: %llu MiB (max_mem), %u pages free\n", (unsigned long long)(max_mem >> 20), vm_page_free_count);
+ 	if (!PE_parse_boot_argn("adreno", &last_step, sizeof(last_step))) {
+ 		if (PE_parse_boot_argn("gpu", &arg, sizeof(arg)) && arg) {
+ 			last_step = 11;
+diff --git a/osfmk/arm/pmap/pmap.c b/osfmk/arm/pmap/pmap.c
+index c240258..2533207 100644
+--- a/osfmk/arm/pmap/pmap.c
++++ b/osfmk/arm/pmap/pmap.c
+@@ -2599,6 +2599,9 @@ initialize_ram_ranges(void)
+ 	assert(first == (first & ~PAGE_MASK));
+ 	assert(end == (end & ~PAGE_MASK));
+ 	avail_page_count = atop(end - first);
++	if (vince_gap_end != 0 && first <= vince_gap_start) {
++		avail_page_count -= atop(vince_gap_end - vince_gap_start);
++	}
+ 
+ 	need_ram_ranges_init = false;
+ }
+@@ -2642,6 +2645,10 @@ pmap_next_page(
+ 	}
+ 
+ 
++	if (vince_gap_end != 0 && first_avail == vince_gap_start) {
++		first_avail = vince_gap_end;    /* vince: jump over the hole between the two banks */
++	}
++
+ 	if (first_avail != avail_end) {
+ 		*pnum = (ppnum_t)atop(first_avail);
+ 		first_avail += PAGE_SIZE;
+diff --git a/osfmk/arm/pmap/pmap_data.h b/osfmk/arm/pmap/pmap_data.h
+index 2883f63..cf50295 100644
+--- a/osfmk/arm/pmap/pmap_data.h
++++ b/osfmk/arm/pmap/pmap_data.h
+@@ -62,6 +62,9 @@
+  */
+ extern pmap_paddr_t vm_first_phys, vm_last_phys;
+ 
++/* vince: managed memory has a hole [gap_start, gap_end) when the second bank is on (both 0 otherwise) */
++extern pmap_paddr_t vince_gap_start, vince_gap_end;
++
+ /**
+  * Return whether the given address represents a kernel-managed physical page.
+  *
+@@ -74,7 +77,7 @@ extern pmap_paddr_t vm_first_phys, vm_last_phys;
+ static inline bool
+ pa_valid(pmap_paddr_t pa)
+ {
+-	return (pa >= vm_first_phys) && (pa < vm_last_phys);
++	return (pa >= vm_first_phys) && (pa < vm_last_phys) && !((pa >= vince_gap_start) && (pa < vince_gap_end));
+ }
+ 
+ /**
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 37e5d07..d98b59f 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -342,6 +342,14 @@ SECURITY_READ_ONLY_LATE(pmap_paddr_t)    avail_start;
+ SECURITY_READ_ONLY_LATE(pmap_paddr_t)    avail_end;
+ SECURITY_READ_ONLY_LATE(pmap_paddr_t)    real_avail_end;
+ SECURITY_READ_ONLY_LATE(unsigned long)   real_phys_size;
++/*
++ * vince, boot-arg vinceram3g=1: a second bank of RAM above a hole. Managed memory is then
++ * [gPhysBase, vince_gap_start) and [vince_gap_end, avail_end); the gap holds the GPU carve-outs, the
++ * firmware and the splash framebuffer and is never managed or mapped. All zero when off.
++ */
++SECURITY_READ_ONLY_LATE(pmap_paddr_t)    vince_gap_start;
++SECURITY_READ_ONLY_LATE(pmap_paddr_t)    vince_gap_end;
++SECURITY_READ_ONLY_LATE(pmap_paddr_t)    vince_bank2_size;
+ SECURITY_READ_ONLY_LATE(vm_map_address_t) physmap_base = (vm_map_address_t)0;
+ SECURITY_READ_ONLY_LATE(vm_map_address_t) physmap_end = (vm_map_address_t)0;
+ 
+@@ -1600,6 +1608,15 @@ arm_vm_physmap_init(boot_args *args)
+ 	arm_vm_page_granular_RWNX(end_kern, phystokv(args->topOfKernelData) - end_kern,
+ 	    ARM64_GRANULE_ALLOW_BLOCK | ARM64_GRANULE_ALLOW_HINT); /* Device Tree (if not locked down), RAM Disk (if present), bootArgs */
+ 
++#if defined(VINCE)
++	if (vince_bank2_size != 0) {
++		// bank 1 up to the gap, then bank 2 as a slice of its own; the gap is not mapped
++		arm_vm_physmap_slide(temp_ptov_table, (args->topOfKernelData - gPhysBase + gVirtBase),
++		    vince_gap_start - args->topOfKernelData, AP_RWNA, ARM64_GRANULE_ALLOW_BLOCK | ARM64_GRANULE_ALLOW_HINT);
++		arm_vm_physmap_slide(temp_ptov_table, (vince_gap_end - gPhysBase + gVirtBase),
++		    vince_bank2_size, AP_RWNA, ARM64_GRANULE_ALLOW_BLOCK | ARM64_GRANULE_ALLOW_HINT);
++	} else
++#endif
+ 	arm_vm_physmap_slide(temp_ptov_table, (args->topOfKernelData - gPhysBase + gVirtBase),
+ 	    real_avail_end - args->topOfKernelData, AP_RWNA, ARM64_GRANULE_ALLOW_BLOCK | ARM64_GRANULE_ALLOW_HINT); // rest of physmem
+ 
+@@ -1930,12 +1947,25 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 		if (args->memSizeActual != 0 && args->memSizeActual > 0xc400000ULL) {
+ 			args->memSizeActual -= 0xc400000ULL;
+ 		}
++		/* the standard layout only: bank 1 ends at 0x73c00000, bank 2 is 0xa0000000..0xffffffff */
++		int ram3g = 0;
++		if (PE_parse_boot_argn("vinceram3g", &ram3g, sizeof(ram3g)) && ram3g != 0 &&
++		    (gPhysBase + args->memSize) == 0x73c00000ULL) {
++			vince_gap_start = gPhysBase + args->memSize;
++			vince_gap_end = 0xa0000000ULL;
++			vince_bank2_size = 0x60000000ULL;
++		}
+ 	}
+ #endif
+ #if KASAN
+ 	real_phys_size = args->memSize + (shadow_ptop - shadow_pbase);
+ #else
+ 	real_phys_size = args->memSize;
++#endif
++#if defined(VINCE)
++	/* address space for the second bank's slice of the physical aperture, with room for block alignment */
++	const vm_size_t vince_va_extra = vince_bank2_size != 0 ? vince_bank2_size + 0x400000 : 0;
++	real_phys_size += vince_va_extra;
+ #endif
+ 	/*
+ 	 * Ensure the physical region we specify for the VM to manage ends on a
+@@ -1988,6 +2018,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	physmap_end = physmap_base + real_phys_size + ARM64_PHYSMAP_ALIGNMENT_PADDING;
+ #else
+ 	static_memory_end = physmap_base + mem_size + ARM64_PHYSMAP_ALIGNMENT_PADDING; // worst possible case for block alignment
++#if defined(VINCE)
++	static_memory_end += vince_va_extra;
++#endif
+ 	physmap_end = physmap_base + real_phys_size + ARM64_PHYSMAP_ALIGNMENT_PADDING;
+ #endif // ARM_LARGE_MEMORY
+ #endif
+@@ -2057,6 +2090,11 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	cpu_ttep = kvtophys((vm_offset_t)cpu_tte);
+ 	bzero(cpu_tte, ARM_PGBYTES);
+ 	avail_end = gPhysBase + mem_size;
++#if defined(VINCE)
++	if (vince_bank2_size != 0) {
++		avail_end = vince_gap_end + vince_bank2_size;
++	}
++#endif
+ 	assert(!(avail_end & PAGE_MASK));
+ 
+ #if KASAN
+@@ -2321,6 +2359,13 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 
+ 	sane_size = mem_size - (avail_start - gPhysBase);
+ 	max_mem = mem_size;
++#if defined(VINCE)
++	/* the second bank counts as memory; the gap does not */
++	sane_size += vince_bank2_size;
++	max_mem += vince_bank2_size;
++	mem_actual += vince_bank2_size;
++	max_mem_actual += vince_bank2_size;
++#endif
+ 	vm_kernel_slid_base = segLOWESTTEXT;
+ 	// vm_kernel_slide is set by arm_init()->arm_slide_rebase_and_sign_image()
+ 	vm_kernel_stext = segTEXTB;
+-- 
+2.43.0
+
