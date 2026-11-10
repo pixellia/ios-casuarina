@@ -1,0 +1,57 @@
+From b19f5cd19a9b32949142d56a504c8377a3ec99a8 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 11:18:24 +0000
+Subject: [PATCH] 0999 vince: size the pmap tables for the whole span when the
+ second bank is on
+
+pv_head_table, pp_attr_table and the PTD root table were sized from mem_size (the first bank
+only), but they are indexed by pa - vm_first_phys, so pages of the second bank wrote past
+their ends (pmap_assert_free: page is being used as a page table, pai 131073). Size them
+from avail_end - gPhysBase instead, and the pmap object likewise.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ osfmk/arm/pmap/pmap.c      | 2 +-
+ osfmk/arm/pmap/pmap_data.c | 5 +++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/osfmk/arm/pmap/pmap.c b/osfmk/arm/pmap/pmap.c
+index 2533207..9298a64 100644
+--- a/osfmk/arm/pmap/pmap.c
++++ b/osfmk/arm/pmap/pmap.c
+@@ -2692,7 +2692,7 @@ pmap_init(
+ 	 *	structures for pages we allocate to be page tables in
+ 	 *	pmap_expand().
+ 	 */
+-	_vm_object_allocate(mem_size, pmap_object);
++	_vm_object_allocate(vince_gap_end != 0 ? (vm_object_size_t)avail_end : (vm_object_size_t)mem_size, pmap_object);
+ 	pmap_object->copy_strategy = MEMORY_OBJECT_COPY_NONE;
+ 
+ 	/*
+diff --git a/osfmk/arm/pmap/pmap_data.c b/osfmk/arm/pmap/pmap_data.c
+index d8592c4..32eab4f 100644
+--- a/osfmk/arm/pmap/pmap_data.c
++++ b/osfmk/arm/pmap/pmap_data.c
+@@ -616,7 +616,7 @@ pmap_data_bootstrap(void)
+ 	 * needed to cover all of kernel-managed physical memory.
+ 	 */
+ 	const uint32_t num_leaf_page_tables =
+-	    (uint32_t)(mem_size / ((PAGE_SIZE / sizeof(pt_entry_t)) * ARM_PGBYTES));
++	    (uint32_t)((vince_gap_end != 0 ? (vm_size_t)(avail_end - gPhysBase) : (vm_size_t)mem_size) / ((PAGE_SIZE / sizeof(pt_entry_t)) * ARM_PGBYTES));
+ 
+ 	/**
+ 	 * There should be one PTD per page table (times 2 since we want twice the
+@@ -631,7 +631,8 @@ pmap_data_bootstrap(void)
+ 	vm_size_t ptd_root_table_size = num_ptd_pages * PAGE_SIZE;
+ 
+ 	/* Number of VM pages that span all of kernel-managed memory. */
+-	const unsigned int npages = (unsigned int)atop(mem_size);
++	/* vince: with the second bank the tables span the hole too, indexed by pa - vm_first_phys */
++	const unsigned int npages = (unsigned int)atop(vince_gap_end != 0 ? (vm_size_t)(avail_end - gPhysBase) : (vm_size_t)mem_size);
+ 
+ 	/* The pv_head_table and pp_attr_table both have one entry per VM page. */
+ 	const vm_size_t pp_attr_table_size = npages * sizeof(pp_attr_t);
+-- 
+2.43.0
+
