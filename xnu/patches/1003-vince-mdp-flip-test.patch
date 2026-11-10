@@ -1,0 +1,90 @@
+From 7562c16b2548426a01f5249cb381ee210c80890f Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 21:16:48 +0000
+Subject: [PATCH] 1003 vince: vincemdptest=1 tries moving the scan-out to a
+ second buffer
+
+The dump shows RGB0 -> LM0 -> INTF1 running but every CTL reads zero, so the flush register
+is unknown. The test points RGB0 at a second buffer inside the splash area, flushes through
+CTL0, CTL1 and CTL2 in turn (red, green, blue), waits two seconds and restores the loader's
+buffer. Boot-arg only; the colour that shows names the CTL that works.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 52 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index 9e3f6b5..0bbe2ac 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1078,6 +1078,55 @@ vince_mdp_dump(void)
+ 	}
+ }
+ 
++/*
++ * vincemdptest=1: try to move the panel's scan-out to another buffer and back, to learn which control block
++ * (CTL0/1/2) makes the new address take effect. The second buffer is inside the splash framebuffer area the
++ * boot loader reserved (0x90801000, the first one is at 0x90001000, 1080x2160x3 = 0x6ac000 bytes each).
++ * Each attempt fills it with a solid colour (CTL0 red, CTL1 green, CTL2 blue), points RGB0 at it, flushes,
++ * waits two seconds and restores the loader's buffer. Whichever colour shows on the screen names the CTL.
++ */
++static void
++vince_mdp_flip_test(void)
++{
++	const uint32_t buf0 = 0x90001000, buf1 = 0x90801000, size = 0x6ac000;
++	vm_offset_t mdp = ml_io_map(0x01a01000, 0x6c000);
++	vm_offset_t fb = ml_io_map_wcomb(buf1, size);
++	volatile uint32_t *src0;
++	uint32_t c, i, t;
++
++	if (mdp == 0 || fb == 0) {
++		printf("VINCE MDP TEST: could not map\n");
++		return;
++	}
++	src0 = (volatile uint32_t *)(mdp + 0x14000 + 0x14);
++	if (*src0 != buf0) {
++		printf("VINCE MDP TEST: RGB0 SRC0_ADDR is %#x, not %#x, giving up\n", *src0, buf0);
++		return;
++	}
++	for (c = 0; c < 3; c++) {
++		volatile uint32_t *flush = (volatile uint32_t *)(mdp + 0x600 + 0x100 * c + 0x18);
++		volatile uint8_t *p = (volatile uint8_t *)fb;
++
++		for (i = 0; i < size; i++) {
++			p[i] = ((i % 3) == c) ? 0xff : 0x00;
++		}
++		*src0 = buf1;
++		*flush = (1u << 3) | (1u << 6);                 /* RGB0 and LM0 */
++		for (t = 0; t < 100 && *flush != 0; t++) {
++			delay(1000);
++		}
++		printf("VINCE MDP TEST: CTL%u flush read back %#x after %u ms, SRC0_ADDR %#x\n", c, *flush, t, *src0);
++		delay(2000 * 1000);
++		*src0 = buf0;
++		*flush = (1u << 3) | (1u << 6);
++		for (t = 0; t < 100 && *flush != 0; t++) {
++			delay(1000);
++		}
++		delay(500 * 1000);
++	}
++	printf("VINCE MDP TEST: done, SRC0_ADDR %#x\n", *src0);
++}
++
+ static void
+ adreno_run(void)
+ {
+@@ -1090,6 +1139,9 @@ adreno_run(void)
+ 	if (PE_parse_boot_argn("vincemdpdump", &arg, sizeof(arg)) && arg != 0) {
+ 		vince_mdp_dump();
+ 	}
++	if (PE_parse_boot_argn("vincemdptest", &arg, sizeof(arg)) && arg != 0) {
++		vince_mdp_flip_test();
++	}
+ 	if (!PE_parse_boot_argn("adreno", &last_step, sizeof(last_step))) {
+ 		if (PE_parse_boot_argn("gpu", &arg, sizeof(arg)) && arg) {
+ 			last_step = 11;
+-- 
+2.43.0
+
