@@ -1,0 +1,32 @@
+From 4648cd7b278a9e221e9d7a0a0e839d8fbc954f91 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Tue, 10 Nov 2026 13:12:02 +0000
+Subject: [PATCH] 1002 vince: vincemdpdump also prints CTL2-4 and the layer
+ mixers
+
+The first dump shows the panel pipe (RGB0 reads 0x90001000, 1080x2160, stride 3240, INTF1 running)
+but CTL0/CTL1 are empty, so find the control block that owns RGB0 and its flush register.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index 4ca2051..4902a22 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1038,7 +1038,8 @@ vince_mdp_dump(void)
+ {
+ 	static const struct { const char *name; uint32_t off; uint32_t len; } win[] = {
+ 		{ "HW", 0x000, 0x20 }, { "INTF_SEL", 0x100, 0x10 },
+-		{ "CTL0", 0x600, 0x40 }, { "CTL1", 0x700, 0x40 },
++		{ "CTL0", 0x600, 0x40 }, { "CTL1", 0x700, 0x40 }, { "CTL2", 0x800, 0x40 }, { "CTL3", 0x900, 0x40 }, { "CTL4", 0xa00, 0x40 },
++		{ "LM0", 0x44000, 0x40 }, { "LM1", 0x45000, 0x40 },
+ 		{ "RGB0", 0x14000, 0x40 }, { "RGB1", 0x16000, 0x40 }, { "DMA0", 0x24000, 0x40 }, { "VIG0", 0x4000, 0x40 },
+ 		{ "INTF1", 0x6a800, 0x60 },
+ 	};
+-- 
+2.43.0
+
