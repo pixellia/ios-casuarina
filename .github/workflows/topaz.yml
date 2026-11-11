@@ -59,7 +59,6 @@ jobs:
 
             ls -la mnt mnt/sbin
             hdiutil detach "$DEV"
-            fsck_hfs -f -y out-min-hfs/min-root.hfs
             python3 -c 'b=open("out-min-hfs/min-root.hfs","rb").read(2048); print("head @0:", b[:4].hex(), "@1024:", b[1024:1026])'
             python3 tools/sparsediff.py zero.img out-min-hfs/min-root.hfs out-min-hfs/min-root.simg
             ls -lh out-min-hfs
