@@ -20,32 +20,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch Mesa (freedreno + softpipe) and build Topaz GL
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fetch Mesa (freedreno + softpipe) and Topaz GL from ci-out
         run: |
           set -euo pipefail
-          mkdir -p mesa-out
-          if ! gh run download 43040805792 -n mesa-ios -D mesa-out; then
-            echo "Fallback: building mesa-ios from source..."
-            brew install meson ninja bison flex pkg-config
-            tr -d '\r' < userland/mesa/mk-mesa-ci.sh > /tmp/mk-mesa-ci.sh
-            bash /tmp/mk-mesa-ci.sh
-            cp -a build-mesa/out/* mesa-out/
-          fi
-          ls -lh mesa-out
-
-          tr -d '\r' < userland/gpu/mk-topaz-ci.sh > /tmp/mk-topaz-ci.sh
-          bash /tmp/mk-topaz-ci.sh
-          ls -lh build-topaz/out
+          git fetch origin ci-out
+          mkdir -p mesa-out topaz-out
+          git show origin/ci-out:mesa-ios.zip > /tmp/mesa-ios.zip
+          unzip -q /tmp/mesa-ios.zip -d mesa-out
+          git show origin/ci-out:topaz-ios.tar.gz > /tmp/topaz-ios.tar.gz
+          tar -xzf /tmp/topaz-ios.tar.gz -C topaz-out
+          ls -lh mesa-out topaz-out
 
       - name: Build 15 GiB iOS 16.7.16 (20H392) HFS+ Root Image (ios16-root.simg)
         run: |
           set -euo pipefail
           IPSW_URL="https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
-          tr -d '\r' < tools/mkiosroot-macos.sh > /tmp/mkiosroot-macos.sh
-          chmod +x /tmp/mkiosroot-macos.sh
-          bash /tmp/mkiosroot-macos.sh "$IPSW_URL" out-ios16-root mesa-out build-topaz/out 15
+          tr -d '\r' < tools/mkiosroot-macos.sh > tools/mkiosroot-macos.lf.sh
+          chmod +x tools/mkiosroot-macos.lf.sh
+          bash tools/mkiosroot-macos.lf.sh "$IPSW_URL" out-ios16-root mesa-out topaz-out 15
 
       - name: Upload ios16-root-meta
         uses: actions/upload-artifact@v4
