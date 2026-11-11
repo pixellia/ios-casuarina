@@ -1,0 +1,42 @@
+0000000000004158 T _redwood_gl_function_refused
+0000000000004000 T _redwood_gl_function_values
+/Users/runner/work/ios-casuarina/ios-casuarina/build-topaz/out/libtopaz-gl.dylib:
+	/topaz/lib/libtopaz-gl.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/topaz/lib/libOSMesa.8.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 150.0.0, current version 3502.0.0)
+	/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit (compatibility version 1.0.0, current version 275.0.0)
+	/System/Library/Frameworks/IOSurface.framework/IOSurface (compatibility version 1.0.0, current version 1.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+total 1136
+-rwxr-xr-x  1 runner  staff   68624 Nov 11 15:13 backboardd-wrap
+-rwxr-xr-x  1 runner  staff  420272 Nov 11 15:13 libtopaz-gl.dylib
+-rwxr-xr-x  1 runner  staff   87408 Nov 11 15:13 libtopaz-inject.dylib
+out-min-hfs/sweet-init: 16635 bytes
+56+0 records in
+56+0 records out
+58720256 bytes transferred in 0.538948 secs (108953472 bytes/sec)
+Attached raw disk: /dev/disk2 (/dev/rdisk2)
+Initialized /dev/rdisk2 as a 56 MB case-sensitive HFS Plus volume with a 512k journal
+"disk2" ejected.
+mnt:
+total 0
+drwxr-xr-x   6 runner  staff  340 Nov 11 15:13 .
+drwxr-xr-x  22 runner  staff  704 Nov 11 15:13 ..
+drwx------   2 root    staff  102 Nov 11 15:13 .fseventsd
+drwxr-xr-x   2 root    staff   68 Nov 11 15:13 dev
+drwxr-xr-x   3 root    staff  102 Nov 11 15:13 private
+drwxr-xr-x   2 root    staff  102 Nov 11 15:13 sbin
+
+mnt/sbin:
+total 40
+drwxr-xr-x  2 root    staff    102 Nov 11 15:13 .
+drwxr-xr-x  6 runner  staff    340 Nov 11 15:13 ..
+-rwxr-xr-x  1 root    wheel  16635 Nov 11 15:13 launchd
+"disk2" ejected.
+head @0: 00000000 @1024: b'HX'
+out-min-hfs/min-root.simg: 28 of 14336 blocks changed (0 MiB) in 7 runs
+total 114960
+-rw-r--r--  1 runner  staff    56M Nov 11 15:13 min-root.hfs
+-rw-r--r--  1 runner  staff   112K Nov 11 15:13 min-root.simg
+-rwxr-xr-x  1 runner  staff    16K Nov 11 15:13 sweet-init
