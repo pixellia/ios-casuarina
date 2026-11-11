@@ -1,0 +1,38 @@
+From 7cd9610894544be50e56c7d79be7ac29e1988abd Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Wed, 11 Nov 2026 10:12:16 +0000
+Subject: [PATCH] 1006 vince: vincemdptest maps less I/O space so the GPU
+ bring-up still fits
+
+The test mapped 7.3 MiB of the 8 MiB I/O submap and never gave it back, so the next
+kmem_alloc of 384 KiB in adreno step 1 failed with KERN_NO_SPACE and panicked. Map only the
+control blocks it uses and 1 MiB of the second buffer (the top of the screen shows the colour).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index dc49394..e75c8b1 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1088,8 +1088,12 @@ vince_mdp_dump(void)
+ static void
+ vince_mdp_flip_test(void)
+ {
+-	const uint32_t buf0 = 0x90001000, buf1 = 0x90801000, size = 0x6ac000;
+-	vm_offset_t mdp = ml_io_map(0x01a01000, 0x6c000);
++	/*
++	 * The I/O submap is only 8 MiB and mappings are never released, so map as little as possible: the control
++	 * blocks up to CTL4 (0x16000) and 1 MiB of the second buffer (about a seventh of the screen, from the top).
++	 */
++	const uint32_t buf0 = 0x90001000, buf1 = 0x90801000, size = 0x100000;
++	vm_offset_t mdp = ml_io_map(0x01a01000, 0x16000);
+ 	vm_offset_t fb = ml_io_map_wcomb(buf1, size);
+ 	volatile uint32_t *src0;
+ 	uint32_t c, i, t;
+-- 
+2.43.0
+
