@@ -33,9 +33,9 @@ jobs:
             DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
             RDEV=${DEV/disk/rdisk}
             echo "Attached raw disk: $DEV ($RDEV)"
-            sudo newfs_hfs -s -J -v iOSRoot "$RDEV"
-            sudo mount -t hfs "$DEV" "$PWD/mnt"
-            sudo diskutil enableOwnership "$DEV" || true
+            newfs_hfs -s -J -v iOSRoot "$RDEV"
+            hdiutil detach "$DEV"
+            DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nobrowse -owners on -mountpoint "$PWD/mnt" out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
 
             sudo install -d -m 0755 -o 0 -g 0 mnt/sbin mnt/dev mnt/private/var/db mnt/private/var/keybags
             sudo install -m 0755 -o 0 -g 0 out-min-hfs/sweet-init mnt/sbin/launchd

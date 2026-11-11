@@ -27,7 +27,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install HFS+ and sparse tools
         run: |
-          sudo apt-get update
+          sudo rm -rf /etc/apt/sources.list.d/*
+          sudo apt-get update -o Acquire::ForceIPv4=true
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends hfsprogs android-sdk-libsparse-utils
       - name: Build 56 MiB HFS+ test root (min-root.hfs / min-root.simg)
         run: |
@@ -127,7 +128,8 @@ jobs:
           df -h
       - name: Install dependencies and build apfs-fuse + lzfse
         run: |
-          sudo apt-get update
+          sudo rm -rf /etc/apt/sources.list.d/*
+          sudo apt-get update -o Acquire::ForceIPv4=true
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             hfsprogs android-sdk-libsparse-utils fuse3 libfuse3-dev bzip2 libbz2-dev \
             zlib1g-dev liblzma-dev libzstd-dev libattr1-dev cmake g++ git jq zstd rsync
