@@ -21,23 +21,31 @@ def main():
     a = ap.parse_args()
     bs = a.block
     size = os.path.getsize(a.new)
-    if os.path.getsize(a.old) != size or size % bs:
+    if (a.old != '-' and os.path.getsize(a.old) != size) or size % bs:
         sys.exit('images must have the same size, a multiple of the block size')
     nblocks = size // bs
 
     # Pass 1: runs of (differs, count) at block granularity, streamed in 8 MiB reads.
     runs = []
     step = (8 << 20) // bs
-    with open(a.old, 'rb') as fo, open(a.new, 'rb') as fn:
-        for base in range(0, nblocks, step):
-            n = min(step, nblocks - base)
-            bo, bn = fo.read(n * bs), fn.read(n * bs)
-            for i in range(n):
-                d = bo[i * bs:(i + 1) * bs] != bn[i * bs:(i + 1) * bs]
-                if runs and runs[-1][0] == d:
-                    runs[-1][1] += 1
-                else:
-                    runs.append([d, 1])
+    zero_blk = b'\x00' * bs
+    with open(a.new, 'rb') as fn:
+        fo = open(a.old, 'rb') if a.old != '-' else None
+        try:
+            for base in range(0, nblocks, step):
+                n = min(step, nblocks - base)
+                bn = fn.read(n * bs)
+                bo = fo.read(n * bs) if fo else None
+                for i in range(n):
+                    blk = bn[i * bs:(i + 1) * bs]
+                    d = (blk != bo[i * bs:(i + 1) * bs]) if fo else (blk != zero_blk)
+                    if runs and runs[-1][0] == d:
+                        runs[-1][1] += 1
+                    else:
+                        runs.append([d, 1])
+        finally:
+            if fo:
+                fo.close()
 
     # Pass 2: emit chunks, copying the differing blocks from NEW.
     changed = sum(c for d, c in runs if d)

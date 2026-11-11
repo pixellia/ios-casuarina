@@ -1,119 +1,128 @@
 name: rootfs
 # Builds on macos-15-intel (native HFS+ and APFS):
-#   1. min-root-hfs (56 MiB case-sensitive journaled HFS+ test root with /sbin/launchd = sweet-init, for 64 MiB logdump)
-#   2. topaz-ios    (libtopaz-gl.dylib, libtopaz-inject.dylib, backboardd-wrap)
-#   3. mesa-ios     (Mesa 25.0.7 freedreno+softpipe libOSMesa.8.dylib + gputest)
-#   4. ios16-root   (Optional via workflow_dispatch build_full_root=true: 14 GiB iOS 16.7.16 20H392 HFS+ root image)
+#   1. ios16-root   (15 GiB iOS 16.7.16 20H392 Case-Sensitive Journaled HFS+ root image with Cryptexes, sweet-root-tweaks, Mesa, and Topaz)
+#   2. min-root-hfs (Optional via workflow_dispatch: 56 MiB HFS+ test root)
 
 on:
   workflow_dispatch:
-    inputs:
-      build_full_root:
-        description: "Also build the 14 GiB iOS 16.7.16 (20H392) HFS+ root image"
-        required: false
-        default: "false"
   push:
     branches: [main, vince]
     paths:
       - ".github/workflows/rootfs.yml"
-      - "tools/mkiosroot.sh"
+      - "tools/mkiosroot-macos.sh"
       - "tools/sweet-root-tweaks.py"
+      - "tools/sparsediff.py"
 
 jobs:
-  min-hfs:
+  ios16-root:
     runs-on: macos-15-intel
-    timeout-minutes: 15
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - name: Build 56 MiB HFS+ test root (min-root.hfs / min-root.simg)
+
+      - name: Fetch Mesa (freedreno + softpipe) and build Topaz GL
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p out-min-hfs mnt
-          CC=$(xcrun --sdk iphoneos -f clang)
-          "$CC" -target arm64-apple-ios16.0 -c tools/sweet-init.S -o sweet-init.o
-          python3 tools/mkinit.py sweet-init.o out-min-hfs/sweet-init
-          chmod 0755 out-min-hfs/sweet-init
+          mkdir -p mesa-out
+          if ! gh run download 43040805792 -n mesa-ios -D mesa-out; then
+            echo "Fallback: building mesa-ios from source..."
+            brew install meson ninja bison flex pkg-config
+            tr -d '\r' < userland/mesa/mk-mesa-ci.sh > /tmp/mk-mesa-ci.sh
+            bash /tmp/mk-mesa-ci.sh
+            cp -a build-mesa/out/* mesa-out/
+          fi
+          ls -lh mesa-out
 
-          dd if=/dev/zero of=zero.img bs=1048576 count=56
-          cp zero.img out-min-hfs/min-root.hfs
-          DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
-          RDEV=${DEV/disk/rdisk}
-          newfs_hfs -s -J -v iOSRoot "$RDEV"
-          hdiutil detach "$DEV"
-          DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nobrowse -owners on -mountpoint "$PWD/mnt" out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
+          tr -d '\r' < userland/gpu/mk-topaz-ci.sh > /tmp/mk-topaz-ci.sh
+          bash /tmp/mk-topaz-ci.sh
+          ls -lh build-topaz/out
 
-          sudo mkdir -p mnt/sbin mnt/dev mnt/private/var/db/diagnostics/timesync mnt/private/var/db/uuidtext mnt/private/var/keybags
-          sudo cp out-min-hfs/sweet-init mnt/sbin/launchd
-          sudo chown 0:0 mnt/sbin/launchd
-          sudo chmod 0755 mnt/sbin/launchd
-          sudo chown -R 272:272 mnt/private/var/db/diagnostics mnt/private/var/db/uuidtext
-          sudo chmod 0751 mnt/private/var/db/diagnostics
-          sudo chmod 0755 mnt/private/var/db/uuidtext mnt/private/var/db/diagnostics/timesync
-          for d in diagnostics uuidtext diagnostics/timesync; do
-            sudo touch "mnt/private/var/db/$d/.migrated"
-            sudo chown 272:272 "mnt/private/var/db/$d/.migrated"
-            sudo chmod 0644 "mnt/private/var/db/$d/.migrated"
-          done
-          printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
-            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-            '<plist version="1.0"><dict><key>KeyBagKeys</key><data>U1dFRVQ=</data></dict></plist>' | \
-            sudo tee mnt/private/var/keybags/systembag.kb >/dev/null
-          sudo chown 0:0 mnt/private/var/keybags mnt/private/var/keybags/systembag.kb
-          sudo chmod 0700 mnt/private/var/keybags
-          sudo chmod 0600 mnt/private/var/keybags/systembag.kb
+      - name: Build 15 GiB iOS 16.7.16 (20H392) HFS+ Root Image (ios16-root.simg)
+        run: |
+          set -euo pipefail
+          IPSW_URL="https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
+          tr -d '\r' < tools/mkiosroot-macos.sh > /tmp/mkiosroot-macos.sh
+          chmod +x /tmp/mkiosroot-macos.sh
+          bash /tmp/mkiosroot-macos.sh "$IPSW_URL" out-ios16-root mesa-out build-topaz/out 15
 
-          ls -la mnt mnt/sbin
-          hdiutil detach "$DEV"
-          python3 tools/sparsediff.py zero.img out-min-hfs/min-root.hfs out-min-hfs/min-root.simg
-          ls -lh out-min-hfs
-      - name: Upload min-root-hfs
+      - name: Upload ios16-root-meta
         uses: actions/upload-artifact@v4
         with:
-          name: min-root-hfs
-          path: out-min-hfs/
-
-  topaz:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: macos-15-intel
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build topaz GL and backboardd wrapper
-        run: |
-          set -o pipefail
-          bash userland/gpu/mk-topaz-ci.sh 2>&1 | tee topaz-build.log
-      - name: Upload topaz-ios
-        uses: actions/upload-artifact@v4
-        with:
-          name: topaz-ios
-          path: build-topaz/out/
-
-  mesa:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: macos-15-intel
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install build tools
-        run: |
-          brew install meson ninja bison flex pkg-config
-          xcrun --sdk iphoneos --show-sdk-path
-      - name: Build Mesa 25.0.7 (freedreno + softpipe, OSMesa) + gputest
-        run: |
-          tr -d '\r' < userland/mesa/mk-mesa-ci.sh > /tmp/mk-mesa-ci.sh
-          chmod +x /tmp/mk-mesa-ci.sh
-          bash /tmp/mk-mesa-ci.sh
-      - name: Logs of a failed build
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mesa-logs
+          name: ios16-root-meta
           path: |
-            build-mesa/meson-setup.log
-            build-mesa/ninja.log
-            build-mesa/build-*/meson-logs/meson-log.txt
-      - name: Upload mesa-ios
+            out-ios16-root/ios16-root.simg.sha256
+            out-ios16-root/d22ap.adt
+          retention-days: 1
+
+      - name: Upload ios16-root-aa
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-ios
-          path: build-mesa/out/
+          name: ios16-root-aa
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-aa
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload ios16-root-ab
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ab
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ab
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-ac
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ac
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ac
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-ad
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ad
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ad
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-ae
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ae
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ae
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-af
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-af
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-af
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-ag
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ag
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ag
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload ios16-root-ah
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root-ah
+          path: out-ios16-root/ios16-root.simg.tar.zst.part-ah
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 1

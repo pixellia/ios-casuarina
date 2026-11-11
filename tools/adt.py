@@ -36,8 +36,12 @@ def im4p_payload(buf):
             'encrypted': any(t == 0x04 for t, _ in items[4:])}
     payload = items[3][1]
     if payload[:4] == b'bvx2':
-        payload = subprocess.run(['lzfse', '-decode'], input=payload,
-                                 capture_output=True, check=True).stdout
+        try:
+            payload = subprocess.run(['lzfse', '-decode'], input=payload,
+                                     capture_output=True, check=True).stdout
+        except FileNotFoundError:
+            payload = subprocess.run(['/usr/bin/compression_tool', '-decode', '-a', 'lzfse'],
+                                     input=payload, capture_output=True, check=True).stdout
     return payload, info
 
 
