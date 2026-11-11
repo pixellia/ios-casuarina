@@ -1,0 +1,429 @@
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index c781abd..1e59b0b 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -129,7 +129,7 @@ extern void VinceGPUStart(void);
+  * stops 4 MiB short of it), mapped uncached so the GPU sees every CPU write.
+  * The GPU SMMU stays in the bypass TZ leaves after restore_sec_cfg, so GPU addresses are physical addresses.
+  */
+-#define GPU_MEM_PA              0x7fc00000u     /* top 4 MiB of the loader's RAM, kept out of the VM (arm_vm_init.c) */
++#define GPU_MEM_PA              0xffc00000u     /* CASUARINA (SDM632): top 4 MiB of 0xa0000000..0x100000000 RAM */
+ #define GPU_MEM_SIZE            0x00200000u
+ #define GPU_PM4_OFF             0x00000000u
+ #define GPU_PFP_OFF             0x00010000u
+diff --git a/bsd/dev/vince_emmc.c b/bsd/dev/vince_emmc.c
+index 1a2f411..b0d4e65 100644
+--- a/bsd/dev/vince_emmc.c
++++ b/bsd/dev/vince_emmc.c
+@@ -747,6 +747,8 @@ extern int hz;      /* bsd/sys/kernel.h */
+ static int vl_chan;
+ static uint32_t vl_secs = VL_SECS_DEF;
+ static uint64_t vl_base;                                    /* first sector of the area */
++static uint64_t vl_flushed, vl_seq;
++static bool vl_armed;
+ 
+ /* 0 = the area is outside the HFS+ volume that starts the partition (or the check is off). */
+ static int
+@@ -864,19 +866,33 @@ vl_round(uint64_t *flushed, uint64_t *seq)
+ 	return r;
+ }
+ 
++static void
++casuarina_pshold_reset(uint32_t rst)
++{
++	printf("CASUARINA EMMC: emmcreset=%u -> flushing SWEETLOG and resetting via MPM2_PS_HOLD (0x004ab000)\n", rst);
++	if (vl_armed) {
++		(void)vl_round(&vl_flushed, &vl_seq);
++	}
++	vm_offset_t pshold = ml_io_map(0x004ab000ull, 0x1000ull);
++	if (pshold) {
++		*(volatile uint32_t *)pshold = 0;
++		__asm__ volatile("dsb sy" ::: "memory");
++	}
++}
++
+ static void
+ vl_thread(__unused void *arg, __unused wait_result_t wr)
+ {
+-	uint64_t flushed = 0, seq = 0;
+ 	uint64_t prev_ops[2] = { 0, 0 }, prev_sect[2] = { 0, 0 }, prev_us = 0;
+-	uint32_t rounds = 0, per = 30 / vl_secs ? 30 / vl_secs : 1;
++	uint32_t rounds = 0, per = 30 / vl_secs ? 30 / vl_secs : 1, rst = 0;
+ 	int fails = 0;
+ 
++	(void)PE_parse_boot_argn("emmcreset", &rst, sizeof(rst));
+ 	printf("VINCE LOG: console log to the last %u KiB of \"%s\" (sector %llu), every %u s\n",
+ 	    VL_AREA_SECT * EMMC_BLK >> 10, ve.name, (unsigned long long)vl_base, vl_secs);
+ 	for (;;) {
+ 		(void)tsleep(&vl_chan, PZERO, "vincelog", hz * (int)vl_secs);
+-		int r = vl_round(&flushed, &seq);
++		int r = vl_round(&vl_flushed, &vl_seq);
+ 
+ 		/* a line about the eMMC load every ~30 s: is everything waiting for the disk? */
+ 		if (++rounds % per == 0) {
+@@ -890,6 +906,9 @@ vl_thread(__unused void *arg, __unused wait_result_t wr)
+ 			prev_sect[0] = sect[0]; prev_sect[1] = sect[1];
+ 			prev_us = us;
+ 		}
++		if (rst >= 2 && rounds * vl_secs >= (rst >= 5 ? rst : 15)) {
++			casuarina_pshold_reset(rst);
++		}
+ 		if (r == 0 || r == EAGAIN) {
+ 			fails = 0;
+ 		} else if (++fails >= 3) {
+@@ -920,6 +939,8 @@ vl_start(void)
+ 	if (r) {
+ 		return;
+ 	}
++	vl_armed = true;
++	(void)vl_round(&vl_flushed, &vl_seq);
+ 	if (kernel_thread_start(vl_thread, NULL, &thread) == KERN_SUCCESS) {
+ 		thread_deallocate(thread);
+ 	}
+@@ -1055,6 +1076,17 @@ vince_emmc_rootdev(dev_t *dev)
+ 			printf("VINCE EMMC: holding %u s\n", hold);
+ 			delay_for_interval(hold * 1000u, NSEC_PER_MSEC);
+ 		}
++		if (vl_armed) {
++			(void)vl_round(&vl_flushed, &vl_seq);
++		}
++		uint32_t rst = 0;
++		if (PE_parse_boot_argn("emmcreset", &rst, sizeof(rst)) && rst != 0) {
++			if (rst == 1) {
++				casuarina_pshold_reset(rst);
++			} else {
++				printf("CASUARINA EMMC: emmcreset=%u -> deferring auto-reset to vl_thread after root mount\n", rst);
++			}
++		}
+ 		if (error) {
+ 			return error;
+ 		}
+diff --git a/bsd/dev/vince_input.c b/bsd/dev/vince_input.c
+index fdc3ee5..98cd43d 100644
+--- a/bsd/dev/vince_input.c
++++ b/bsd/dev/vince_input.c
+@@ -101,13 +101,13 @@ extern void vince_adreno_init(void);   /* vince_adreno.c: boot-arg adreno=N, off
+ #define CLK_CTL_400K    0xe031cu                /* 19.2 MHz XO, Linux's fast-mode divider */
+ #define CLK_CTL_100K    0x35du                  /* what the shim proved */
+ 
+-#define RMI_ADDR        0x20
++#define FT_ADDR         0x38    /* CASUARINA (Vsmart Joy 3): FocalTech FT8006P on BLSP1 QUP3 I2C */
++#define RMI_ADDR        FT_ADDR
+ #define VINCE_TOUCH_FINGERS 4
+ #define TOUCH_POLL_MS   8
+ 
+ static vm_offset_t spmi_core, spmi_cnfg, spmi_obs, tlmm, gcc, qup;
+ static uint32_t qup_in_fifo, qup_out_fifo, qup_clk_ctl = CLK_CTL_400K;
+-static int rmi_page = -1;
+ static bool input_started;
+ static int keys_chan, touch_chan;
+ 
+@@ -335,24 +335,12 @@ qup_msg(int rd, const uint8_t *tx, uint8_t *rx, uint32_t n)
+ }
+ 
+ static int
+-rmi_read(uint16_t reg, uint8_t *buf, uint32_t n)
++ft_read(uint8_t reg, uint8_t *buf, uint32_t n)
+ {
+-	uint8_t a = (uint8_t)reg;
+-	int r = 0;
+-	if ((int)(reg >> 8) != rmi_page) {
+-		uint8_t sel[2] = {0xff, (uint8_t)(reg >> 8)};
+-		r = qup_msg(0, sel, NULL, 2);
+-		rmi_page = r ? -1 : (int)(reg >> 8);
+-	}
+-	if (!r) {
+-		r = qup_msg(0, &a, NULL, 1);
+-	}
++	int r = qup_msg(0, &reg, NULL, 1);
+ 	if (!r) {
+ 		r = qup_msg(1, NULL, buf, n);
+ 	}
+-	if (r) {
+-		rmi_page = -1;
+-	}
+ 	return r;
+ }
+ 
+@@ -425,8 +413,8 @@ touch_release_all(void)
+ static void
+ touch_thread(void *arg, wait_result_t result)
+ {
+-	uint16_t f01_data = 0, f12_data = 0;
+-	uint8_t f12_mask = 0, bit = 0, d[VINCE_TOUCH_FINGERS * 8];
++	uint8_t chip_id = 0, fw_ver = 0, vendor_id = 0;
++	uint8_t d[2 + VINCE_TOUCH_FINGERS * 6];
+ 	unsigned errors = 0, idle = 0;
+ 	(void)arg;
+ 	(void)result;
+@@ -434,38 +422,20 @@ touch_thread(void *arg, wait_result_t result)
+ 	if (!touch_hw_init()) {
+ 		goto out;
+ 	}
+-	/* Page 0 PDT, top down; interrupt bits are given out in this order. */
+-	for (int a = 0xe9; a >= 0x0a; a -= 6) {
+-		uint8_t e[6];
+-		int r = rmi_read((uint16_t)a, e, 6);
+-		if (r && a == 0xe9 && qup_clk_ctl != CLK_CTL_100K) {
+-			printf("VINCE INPUT: RMI4 read at 400 kHz failed %d, retrying at 100 kHz\n", r);
+-			qup_clk_ctl = CLK_CTL_100K;
+-			r = rmi_read((uint16_t)a, e, 6);
+-		}
+-		if (r) {
+-			printf("VINCE INPUT: RMI4 PDT read at %#x failed %d\n", a, r);
+-			goto out;
+-		}
+-		if (e[5] == 0 || e[5] == 0xff) {
+-			break;
+-		}
+-		if (e[5] == 0x01) {
+-			f01_data = e[3];
+-		} else if (e[5] == 0x12) {
+-			f12_data = e[3];
+-			f12_mask = (uint8_t)(((1u << (e[4] & 7u)) - 1u) << bit);
+-		}
+-		printf("VINCE INPUT: RMI4 F%02x query %#x ctrl %#x data %#x irqs %u\n",
+-		    e[5], e[0], e[2], e[3], e[4] & 7u);
+-		bit = (uint8_t)(bit + (e[4] & 7u));
++	int r = ft_read(0xa3, &chip_id, 1);
++	if (r && qup_clk_ctl != CLK_CTL_100K) {
++		printf("CASUARINA INPUT: FT8006P read at 400 kHz failed %d, retrying at 100 kHz\n", r);
++		qup_clk_ctl = CLK_CTL_100K;
++		r = ft_read(0xa3, &chip_id, 1);
+ 	}
+-	if (!f01_data && !f12_data) {
+-		printf("VINCE INPUT: no RMI4 F01/F12; touch off\n");
++	if (r) {
++		printf("CASUARINA INPUT: FT8006P @ 0x38 chip ID read failed %d; touch off\n", r);
+ 		goto out;
+ 	}
+-	printf("VINCE INPUT: touch on, F12 data %#x irq mask %#x, %d fingers\n",
+-	    f12_data, f12_mask, VINCE_TOUCH_FINGERS);
++	(void)ft_read(0xa6, &fw_ver, 1);
++	(void)ft_read(0xa8, &vendor_id, 1);
++	printf("CASUARINA INPUT: FocalTech FT8006P @ 0x38 chip %#x fw %#x vendor %#x, %d fingers (720x1600)\n",
++	    chip_id, fw_ver, vendor_id, VINCE_TOUCH_FINGERS);
+ 
+ 	for (;;) {
+ 		/* the attention line (low) says a report is waiting; check anyway every ~100 ms */
+@@ -474,15 +444,27 @@ touch_thread(void *arg, wait_result_t result)
+ 			continue;
+ 		}
+ 		idle = 0;
+-		uint8_t irq = 0;
+-		int r = rmi_read((uint16_t)(f01_data + 1), &irq, 1);  /* reading acks the controller */
+-		if (!r && (irq & f12_mask)) {
+-			r = rmi_read(f12_data, d, sizeof(d));
+-			if (!r) {
+-				for (int i = 0; i < VINCE_TOUCH_FINGERS; i++) {
+-					const uint8_t *p = d + 8 * i;
+-					int down = p[0] == 1 || p[0] == 2;     /* finger, stylus */
+-					sweet_hid_touch(i, down, p[1] | p[2] << 8, p[3] | p[4] << 8);
++		r = ft_read(0x01, d, sizeof(d));
++		if (!r) {
++			uint8_t count = d[1] & 0x0fu;
++			if (count > VINCE_TOUCH_FINGERS) {
++				count = 0;
++			}
++			bool seen[VINCE_TOUCH_FINGERS] = { false, false, false, false };
++			for (uint8_t i = 0; i < count; i++) {
++				const uint8_t *p = d + 2 + 6 * i;
++				uint8_t ev = p[0] >> 6;         /* 0 = down, 1 = up, 2 = contact */
++				uint8_t id = (p[2] >> 4) & 0x0fu;
++				int x = ((int)(p[0] & 0x0fu) << 8) | p[1];
++				int y = ((int)(p[2] & 0x0fu) << 8) | p[3];
++				if (id < VINCE_TOUCH_FINGERS) {
++					seen[id] = true;
++					sweet_hid_touch(id, (ev == 0 || ev == 2) ? 1 : 0, x, y);
++				}
++			}
++			for (int f = 0; f < VINCE_TOUCH_FINGERS; f++) {
++				if (!seen[f]) {
++					sweet_hid_touch(f, 0, 0, 0);
+ 				}
+ 			}
+ 		}
+diff --git a/iokit/Kernel/arm/SweetBattery.cpp b/iokit/Kernel/arm/SweetBattery.cpp
+index 8d39671..1c66d8e 100644
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -16,7 +16,7 @@
+ /* bsd/dev/vince_pmic.c: PMI8950 (SMBCHG charger, FG state of charge) over the SPMI arbiter, read only */
+ extern "C" int vince_pmic_init(void);
+ extern "C" int vince_pmic_read(unsigned ppid, unsigned reg, uint8_t *out);
+-#define BATT_MAH 4000u          /* Redmi 5 Plus */
++#define BATT_MAH 5000u          /* Vsmart Joy 3 (CASUARINA) */
+ #else
+ #define BATT_MAH 5020u
+ #endif
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 83ce179..75403e7 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -497,11 +497,11 @@ AppleCLCD::start(IOService *provider)
+ }
+ 
+ #if defined(VINCE)
+-/* The panel as LK left it: packed 24 bpp (bytes B, G, R), 1080x2160, in DDR. */
++/* CASUARINA (Vsmart Joy 3, SDM632): packed 24 bpp (bytes B, G, R), 720x1600, stride 2160, at 0x90001000. */
+ #define VINCE_FB_PHYS           0x90001000ull
+-#define VINCE_FB_W              1080
+-#define VINCE_FB_H              2160
+-#define VINCE_FB_STRIDE         3240
++#define VINCE_FB_W              720
++#define VINCE_FB_H              1600
++#define VINCE_FB_STRIDE         2160
+ 
+ bool
+ AppleCLCD::startVince(void)
+diff --git a/iokit/Kernel/arm/SweetSurface.cpp b/iokit/Kernel/arm/SweetSurface.cpp
+index 66b9622..d70b338 100644
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -1108,7 +1108,7 @@ IOSurfaceRootUserClient::create(IOExternalMethodArguments *args)
+ 		}
+ 	}
+ 	if (ret == kIOReturnSuccess && s->memory == NULL && vince_place_enabled() && s->bytesPerElement == 4 &&
+-	    s->planeCount <= 1 && s->elementWidth == 1 && s->elementHeight == 1 && s->width >= 1000 && s->height >= 2000 &&
++	    s->planeCount <= 1 && s->elementWidth == 1 && s->elementHeight == 1 && s->width >= 700 && s->height >= 1500 /* CASUARINA 720x1600 */ &&
+ 	    s->allocSize <= (48u << 20)) {
+ 		char who[32];
+ 
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 7de5b31..481ed14 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -177,7 +177,7 @@ cacheSync(struct gpu_buffer *b)
+  * wants one for every frame). So a part of RAM is kept out of the VM for it (osfmk/arm64/arm_vm_init.c: the range
+  * just below the 4 MiB of bsd/dev/vince_adreno.c; the two must agree) and handed out here in 4 KiB units, first fit.
+  */
+-#define GPU_POOL_PA     0x73c00000ull
++#define GPU_POOL_PA     0xf3c00000ull   /* CASUARINA (SDM632): 192 MiB below 0xffc00000 */
+ #define GPU_POOL_SIZE   0x0c000000ull
+ #define GPU_POOL_UNIT   4096ull
+ #define GPU_POOL_UNITS  (GPU_POOL_SIZE / GPU_POOL_UNIT)
+diff --git a/iokit/Kernel/arm/hid/SweetHID.cpp b/iokit/Kernel/arm/hid/SweetHID.cpp
+index ea69eae..6b1306d 100644
+--- a/iokit/Kernel/arm/hid/SweetHID.cpp
++++ b/iokit/Kernel/arm/hid/SweetHID.cpp
+@@ -356,10 +356,11 @@ OSDefineMetaClassAndStructors(SweetHIDButtons, IOHIDEventService);
+  * app-switcher gesture.
+  */
+ #define SWEET_TOUCH_EDGE_PX 48
+-#define SWEET_TOUCH_PANEL_W 1080
+ #if defined(VINCE)
+-#define SWEET_TOUCH_PANEL_H 2160        /* vince panel (SweetFramebuffer.cpp VINCE_FB_H) */
++#define SWEET_TOUCH_PANEL_W 720         /* CASUARINA panel (SweetFramebuffer.cpp VINCE_FB_W) */
++#define SWEET_TOUCH_PANEL_H 1600        /* CASUARINA panel (SweetFramebuffer.cpp VINCE_FB_H) */
+ #else
++#define SWEET_TOUCH_PANEL_W 1080
+ #define SWEET_TOUCH_PANEL_H 2400
+ #endif
+ class SweetHIDTouch : public IOHIDEventService {
+diff --git a/osfmk/arm64/sweet_early.c b/osfmk/arm64/sweet_early.c
+index 89acdcd..3e6f714 100644
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -12,12 +12,12 @@
+ #include <kern/misc_protos.h>
+ 
+ #if defined(VINCE)
+-/* vince: 1080x2160, packed 24 bpp (bytes B,G,R), stride 3240, left lit by LK at 0x90001000 */
++/* CASUARINA (Vsmart Joy 3, SDM632): 720x1600, packed 24 bpp (bytes B,G,R), stride 2160, left lit by LK at 0x90001000 */
+ static volatile uint8_t *early_fb = (volatile uint8_t *)(uintptr_t)0x90001000;
+ #define EARLY_BPP 3u
+-#define EARLY_WIDTH 1080u
+-#define EARLY_HEIGHT 2160u
+-#define EARLY_STRIDE_BYTES 3240u
++#define EARLY_WIDTH 720u
++#define EARLY_HEIGHT 1600u
++#define EARLY_STRIDE_BYTES 2160u
+ #elif defined(TOPAZ_4K)
+ static volatile uint8_t *early_fb = (volatile uint8_t *)(uintptr_t)0x5c000000;  /* topaz splash */
+ #define EARLY_BPP 4u
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1947,13 +1947,18 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 		if (args->memSizeActual != 0 && args->memSizeActual > 0xc400000ULL) {
+ 			args->memSizeActual -= 0xc400000ULL;
+ 		}
+-		/* the standard layout only: bank 1 ends at 0x73c00000, bank 2 is 0xa0000000..0xffffffff */
++		/* vince: bank 1 ends at 0x73c00000; casuarina: bank 1 ends at 0xf3c00000, bank 2 is 0x100000000..0x13c000000 */
+ 		int ram3g = 0;
+-		if (PE_parse_boot_argn("vinceram3g", &ram3g, sizeof(ram3g)) && ram3g != 0 &&
+-		    (gPhysBase + args->memSize) == 0x73c00000ULL) {
+-			vince_gap_start = gPhysBase + args->memSize;
+-			vince_gap_end = 0xa0000000ULL;
+-			vince_bank2_size = 0x60000000ULL;
++		if (PE_parse_boot_argn("vinceram3g", &ram3g, sizeof(ram3g)) && ram3g != 0) {
++			if ((gPhysBase + args->memSize) == 0x73c00000ULL) {
++				vince_gap_start = gPhysBase + args->memSize;
++				vince_gap_end = 0xa0000000ULL;
++				vince_bank2_size = 0x60000000ULL;
++			} else if ((gPhysBase + args->memSize) == 0xf3c00000ULL) {
++				vince_gap_start = gPhysBase + args->memSize;
++				vince_gap_end = 0x100000000ULL;
++				vince_bank2_size = 0x3c000000ULL;
++			}
+ 		}
+ 	}
+ #endif
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index 654960e..6f0c1dc 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -516,8 +516,8 @@ LEXT(start_first_cpu)
+ #if defined(SWEET)
+ 	/* Stage 0: white 64x32 band, no stack or page tables needed. */
+ #if defined(VINCE)
+-	/* vince: 1080x2160 packed 24 bpp, stride 3240, buffer at 0x90001000; bottom rows */
+-	MOV64	x0, (0x90001000 + 2128 * 3240)
++	/* CASUARINA (Vsmart Joy 3, SDM632): 720x1600 packed 24 bpp, stride 2160, buffer at 0x90001000 */
++	MOV64	x0, (0x90001000 + 1568 * 2160)
+ #elif defined(TOPAZ_4K)
+ 	MOV64	x0, (0x5c000000 + 2368 * 4320)	/* topaz splash framebuffer */
+ #else
+@@ -526,7 +526,7 @@ LEXT(start_first_cpu)
+ 	mov		w1, #-1
+ 	mov		x2, #32
+ #if defined(VINCE)
+-	mov		x4, #3240
++	mov		x4, #2160
+ #else
+ 	mov		x4, #4320
+ #endif
+@@ -703,19 +703,29 @@ Lkernelcache_base_found:
+ 	 * Normal-NC: six 2 MB blocks in an L2 table of its own (L1 index 1;
+ 	 * RAM is at 0x140000000), for the early screen console.
+ 	 */
+-	add		x2, x2, PGBYTES
+ #if defined(VINCE)
+-	/* vince: 0x90000000..0x907fffff (the buffer starts at +0x1000), L1 index 2; RAM is below 0x80000000 */
++	/* CASUARINA: 0x90000000 shares L1[2] with kernel RAM at 0xa0000000; reuse existing L2 if present */
+ 	MOV64	x10, 0x90000000
++	ldr		x11, [x1, #16]
++	cbz		x11, Lcasuarina_alloc_l2
++	and		x13, x11, #(ARM_TTE_TABLE_MASK)
++	b		Lcasuarina_fill_l2
++Lcasuarina_alloc_l2:
++	add		x2, x2, PGBYTES
++	create_l1_table_entry x10, x1, x2, x11, x12, x13
++	mov		x13, x2
++Lcasuarina_fill_l2:
+ #else
++	add		x2, x2, PGBYTES
+ 	MOV64	x10, 0x5c000000
+-#endif
+ 	create_l1_table_entry x10, x1, x2, x11, x12, x13
++	mov		x13, x2
++#endif
+ 	MOV64	x11, (ARM_TTE_TYPE_BLOCK | ARM_TTE_VALID | ARM_TTE_BLOCK_SH(SH_OUTER_MEMORY) | ARM_TTE_BLOCK_ATTRINDX(CACHE_ATTRINDX_WRITECOMB) | ARM_TTE_BLOCK_AF | ARM_TTE_BLOCK_PNX | ARM_TTE_BLOCK_NX)
+ 	orr		x11, x11, x10
+ 	and		x12, x10, #(ARM_TT_L2_INDEX_MASK)
+ 	lsr		x12, x12, #(ARM_TT_L2_SHIFT)
+-	add		x13, x2, x12, lsl #(TTE_SHIFT)
++	add		x13, x13, x12, lsl #(TTE_SHIFT)
+ #if defined(VINCE)
+ 	mov		x12, #4				/* 8 MB covers 1080x2160x3 = 6.7 MB */
+ #else
