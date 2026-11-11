@@ -37,20 +37,27 @@ jobs:
             hdiutil detach "$DEV"
             DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nobrowse -owners on -mountpoint "$PWD/mnt" out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
 
-            sudo install -d -m 0755 -o 0 -g 0 mnt/sbin mnt/dev mnt/private/var/db mnt/private/var/keybags
-            sudo install -m 0755 -o 0 -g 0 out-min-hfs/sweet-init mnt/sbin/launchd
-            sudo install -d -o 272 -g 272 -m 0751 mnt/private/var/db/diagnostics
-            sudo install -d -o 272 -g 272 -m 0755 mnt/private/var/db/uuidtext mnt/private/var/db/diagnostics/timesync
+            sudo mkdir -p mnt/sbin mnt/dev mnt/private/var/db/diagnostics/timesync mnt/private/var/db/uuidtext mnt/private/var/keybags
+            sudo cp out-min-hfs/sweet-init mnt/sbin/launchd
+            sudo chown 0:0 mnt/sbin/launchd
+            sudo chmod 0755 mnt/sbin/launchd
+            sudo chown -R 272:272 mnt/private/var/db/diagnostics mnt/private/var/db/uuidtext
+            sudo chmod 0751 mnt/private/var/db/diagnostics
+            sudo chmod 0755 mnt/private/var/db/uuidtext mnt/private/var/db/diagnostics/timesync
             for d in diagnostics uuidtext diagnostics/timesync; do
-              sudo install -o 272 -g 272 -m 0644 /dev/null "mnt/private/var/db/$d/.migrated"
+              sudo touch "mnt/private/var/db/$d/.migrated"
+              sudo chown 272:272 "mnt/private/var/db/$d/.migrated"
+              sudo chmod 0644 "mnt/private/var/db/$d/.migrated"
             done
             printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
               '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
               '<plist version="1.0"><dict><key>KeyBagKeys</key><data>U1dFRVQ=</data></dict></plist>' | \
-              sudo install -m 0600 -o 0 -g 0 /dev/stdin mnt/private/var/keybags/systembag.kb
+              sudo tee mnt/private/var/keybags/systembag.kb >/dev/null
+            sudo chown 0:0 mnt/private/var/keybags mnt/private/var/keybags/systembag.kb
+            sudo chmod 0700 mnt/private/var/keybags
+            sudo chmod 0600 mnt/private/var/keybags/systembag.kb
 
             ls -la mnt mnt/sbin
-            sudo umount "$PWD/mnt" || true
             hdiutil detach "$DEV"
             fsck_hfs -f -y out-min-hfs/min-root.hfs
             python3 -c 'b=open("out-min-hfs/min-root.hfs","rb").read(2048); print("head @0:", b[:4].hex(), "@1024:", b[1024:1026])'
