@@ -1,8 +1,12 @@
 name: topaz
-# libtopaz-gl.dylib, libtopaz-inject.dylib and the backboardd wrapper (GPU rendering for the window server).
-# Run by hand (Actions -> topaz -> Run workflow). The result is the artifact "topaz-ios".
+# libtopaz-gl.dylib, libtopaz-inject.dylib, backboardd-wrap, and min-root-hfs (56 MiB HFS+ test root).
 on:
   workflow_dispatch:
+  push:
+    branches: [main, vince]
+    paths:
+      - ".github/workflows/topaz.yml"
+      - "userland/gpu/**"
 
 jobs:
   build:
@@ -10,10 +14,43 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      - name: Build topaz-ios
         run: |
           set -o pipefail
           bash userland/gpu/mk-topaz-ci.sh 2>&1 | tee topaz-build.log
+      - name: Build 56 MiB HFS+ test root (min-root.hfs + min-root.simg)
+        run: |
+          set -euo pipefail
+          mkdir -p out-min-hfs mnt
+          CC=$(xcrun --sdk iphoneos -f clang)
+          "$CC" -target arm64-apple-ios16.0 -c tools/sweet-init.S -o sweet-init.o
+          python3 tools/mkinit.py sweet-init.o out-min-hfs/sweet-init
+          chmod 0755 out-min-hfs/sweet-init
+
+          dd if=/dev/zero of=zero.img bs=1048576 count=56
+          cp zero.img out-min-hfs/min-root.hfs
+          DEV=$(hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount out-min-hfs/min-root.hfs | head -n1 | awk '{print $1}')
+          echo "Attached raw disk: $DEV"
+          newfs_hfs -s -J -v iOSRoot "$DEV"
+          sudo diskutil mount -mountPoint "$PWD/mnt" "$DEV"
+
+          sudo install -d -m 0755 -o 0 -g 0 mnt/sbin mnt/dev mnt/private/var/db mnt/private/var/keybags
+          sudo install -m 0755 -o 0 -g 0 out-min-hfs/sweet-init mnt/sbin/launchd
+          sudo install -d -o 272 -g 272 -m 0751 mnt/private/var/db/diagnostics
+          sudo install -d -o 272 -g 272 -m 0755 mnt/private/var/db/uuidtext mnt/private/var/db/diagnostics/timesync
+          for d in diagnostics uuidtext diagnostics/timesync; do
+            sudo install -o 272 -g 272 -m 0644 /dev/null "mnt/private/var/db/$d/.migrated"
+          done
+          printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0"><dict><key>KeyBagKeys</key><data>U1dFRVQ=</data></dict></plist>' | \
+            sudo install -m 0600 -o 0 -g 0 /dev/stdin mnt/private/var/keybags/systembag.kb
+
+          ls -la mnt mnt/sbin
+          hdiutil detach "$DEV"
+          fsck_hfs -f -y out-min-hfs/min-root.hfs
+          python3 tools/sparsediff.py zero.img out-min-hfs/min-root.hfs out-min-hfs/min-root.simg
+          ls -lh out-min-hfs
       - name: Log
         if: always()
         uses: actions/upload-artifact@v4
@@ -25,3 +62,8 @@ jobs:
         with:
           name: topaz-ios
           path: build-topaz/out/
+      - name: Upload min-root-hfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: min-root-hfs
+          path: out-min-hfs/
