@@ -1,0 +1,177 @@
+name: rootfs
+# Builds:
+#   1. min-root-hfs (56 MiB case-sensitive journaled HFS+ test root with /sbin/launchd = sweet-init, for 64 MiB logdump)
+#   2. topaz-ios    (libtopaz-gl.dylib, libtopaz-inject.dylib, backboardd-wrap on macos-15-intel)
+#   3. mesa-ios     (Mesa 25.0.7 freedreno+softpipe libOSMesa.8.dylib + gputest on macos-15-intel)
+#   4. ios16-root   (Optional via workflow_dispatch build_full_root=true: 14 GiB iOS 16.7.16 20H392 HFS+ root image)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_full_root:
+        description: "Also build the 14 GiB iOS 16.7.16 (20H392) HFS+ root image"
+        required: false
+        default: "false"
+  push:
+    branches: [main, vince]
+    paths:
+      - ".github/workflows/rootfs.yml"
+      - "tools/mkiosroot.sh"
+      - "tools/sweet-root-tweaks.py"
+      - "userland/**"
+
+jobs:
+  min-hfs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install HFS+ and sparse tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y hfsprogs android-sdk-libsparse-utils clang lzfse jq
+      - name: Build 56 MiB HFS+ test root (min-root.hfs / min-root.simg)
+        run: |
+          mkdir -p out-min-hfs mnt
+          clang -target arm64-apple-ios16.0 -c tools/sweet-init.S -o sweet-init.o
+          python3 tools/mkinit.py sweet-init.o out-min-hfs/sweet-init
+          chmod 0755 out-min-hfs/sweet-init
+
+          # 56 MiB leaves 8 MiB at the end of a 64 MiB logdump partition for SWEETLOG (4 MiB + 4 KiB + 1 MiB margin)
+          truncate -s 56M out-min-hfs/min-root.hfs
+          mkfs.hfsplus -s -J -v iOSRoot out-min-hfs/min-root.hfs
+          sudo mount -t hfsplus -o loop,force out-min-hfs/min-root.hfs mnt
+
+          sudo install -d -m 0755 -o 0 -g 0 mnt/sbin mnt/dev mnt/private/var/db mnt/private/var/keybags
+          sudo install -m 0755 -o 0 -g 0 out-min-hfs/sweet-init mnt/sbin/launchd
+          sudo install -d -o 272 -g 272 -m 0751 mnt/private/var/db/diagnostics
+          sudo install -d -o 272 -g 272 -m 0755 mnt/private/var/db/uuidtext mnt/private/var/db/diagnostics/timesync
+          for d in diagnostics uuidtext diagnostics/timesync; do
+            sudo install -o 272 -g 272 -m 0644 /dev/null "mnt/private/var/db/$d/.migrated"
+          done
+          printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0"><dict><key>KeyBagKeys</key><data>U1dFRVQ=</data></dict></plist>' | \
+            sudo install -m 0600 -o 0 -g 0 /dev/stdin mnt/private/var/keybags/systembag.kb
+
+          df -h mnt
+          ls -la mnt mnt/sbin
+          sudo umount mnt
+          fsck.hfsplus -f -y out-min-hfs/min-root.hfs
+          fsck.hfsplus -f -n out-min-hfs/min-root.hfs
+          img2simg out-min-hfs/min-root.hfs out-min-hfs/min-root.simg
+          ls -lh out-min-hfs
+      - name: Upload min-root-hfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: min-root-hfs
+          path: out-min-hfs/
+
+  topaz:
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build topaz GL and backboardd wrapper
+        run: |
+          set -o pipefail
+          bash userland/gpu/mk-topaz-ci.sh 2>&1 | tee topaz-build.log
+      - name: Upload topaz-ios
+        uses: actions/upload-artifact@v4
+        with:
+          name: topaz-ios
+          path: build-topaz/out/
+
+  mesa:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          brew install meson ninja bison flex pkg-config
+          xcrun --sdk iphoneos --show-sdk-path
+      - name: Build Mesa 25.0.7 (freedreno + softpipe, OSMesa) + gputest
+        run: bash userland/mesa/mk-mesa-ci.sh
+      - name: Logs of a failed build
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesa-logs
+          path: |
+            build-mesa/meson-setup.log
+            build-mesa/ninja.log
+            build-mesa/build-*/meson-logs/meson-log.txt
+      - name: Upload mesa-ios
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesa-ios
+          path: build-mesa/out/
+
+  ios16-root:
+    if: ${{ inputs.build_full_root == 'true' }}
+    needs: [topaz, mesa]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h
+      - name: Install dependencies and build apfs-fuse
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y hfsprogs android-sdk-libsparse-utils fuse3 libfuse3-dev bzip2 libbz2-dev \
+            zlib1g-dev liblzma-dev libzstd-dev libattr1-dev cmake g++ git jq lzfse zstd rsync
+          git clone --depth 1 --recurse-submodules https://github.com/sgan81/apfs-fuse.git /tmp/apfs-fuse
+          cmake -S /tmp/apfs-fuse -B /tmp/apfs-fuse/build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_CXX_FLAGS="-include cstdint"
+          cmake --build /tmp/apfs-fuse/build -j$(nproc)
+          sudo install -m 0755 /tmp/apfs-fuse/build/apfs-fuse /usr/local/bin/apfs-fuse
+      - name: Download topaz-ios and mesa-ios artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Fetch iPhone10,3 20H392 DMGs & build 14G HFS+ root image
+        run: |
+          WORK=/mnt/ios16-work
+          sudo mkdir -p "$WORK"
+          sudo chown -R "$USER:$USER" "$WORK"
+          IPSW_URL=$(curl -sfL https://api.ipsw.me/v4/ipsw/iPhone10,3/20H392 | jq -r .url)
+          echo "IPSW_URL=$IPSW_URL"
+          python3 tools/remotezip.py "$IPSW_URL" DeviceTree.d22ap.im4p "$WORK/ipsw"
+          python3 tools/adt.py unwrap "$WORK/ipsw/Firmware/all_flash/DeviceTree.d22ap.im4p" "$WORK/d22ap.adt"
+          python3 tools/remotezip.py "$IPSW_URL" 087-86698-044.dmg "$WORK/ipsw"
+          python3 tools/remotezip.py "$IPSW_URL" 087-86593-047.dmg "$WORK/ipsw"
+          python3 tools/remotezip.py "$IPSW_URL" 087-86715-047.dmg "$WORK/ipsw"
+
+          bash tools/mkiosroot.sh \
+            "$WORK/ipsw/087-86698-044.dmg" \
+            "$WORK/ipsw/087-86593-047.dmg" \
+            "$WORK/ipsw/087-86715-047.dmg" \
+            "$WORK/ios16-root.hfs" 14G
+
+          rm -rf "$WORK/ipsw"
+          mkdir -p "$WORK/mnt"
+          sudo mount -t hfsplus -o loop,force "$WORK/ios16-root.hfs" "$WORK/mnt"
+          sudo python3 tools/sweet-root-tweaks.py "$WORK/mnt"
+          sudo python3 vince/tools/vince-gputest-install.py "$WORK/mnt" artifacts/mesa-ios
+          sudo python3 vince/tools/vince-topaz-install.py "$WORK/mnt" artifacts/topaz-ios
+          sudo umount "$WORK/mnt"
+
+          fsck.hfsplus -f -y "$WORK/ios16-root.hfs" | grep -v 'Illegal name' || true
+          fsck.hfsplus -f -n "$WORK/ios16-root.hfs"
+
+          mkdir -p "$WORK/out"
+          cp "$WORK/d22ap.adt" "$WORK/out/d22ap.adt"
+          img2simg "$WORK/ios16-root.hfs" "$WORK/ios16-root.simg"
+          rm -f "$WORK/ios16-root.hfs"
+          zstd -T0 -3 --rm "$WORK/ios16-root.simg" -o "$WORK/out/ios16-root.simg.zst"
+          ls -lh "$WORK/out"
+      - name: Upload ios16-root
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-root
+          path: /mnt/ios16-work/out/

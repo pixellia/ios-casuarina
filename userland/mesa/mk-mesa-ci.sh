@@ -24,7 +24,7 @@ sed -i '' 's/"RedwoodGPU"/"VinceGPU"/' mesa-$VERSION/src/redwood-drm/redwood_drm
 grep -q '"VinceGPU"' mesa-$VERSION/src/redwood-drm/redwood_drm.c
 python3 -m venv venv
 venv/bin/pip -q install mako pyyaml packaging
-export PATH=$B/venv/bin:/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:$PATH
+export PATH=$B/venv/bin:/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:/usr/local/opt/bison/bin:/usr/local/opt/flex/bin:$PATH
 cat > cross.ini <<INI
 [binaries]
 c = ['$CC', '-target', 'arm64-apple-ios16.0', '-isysroot', '$SDK']
