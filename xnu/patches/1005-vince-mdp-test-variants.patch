@@ -1,0 +1,68 @@
+From 1e12dbee1795c2a7e67db22eeeff9c141b45b423 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Wed, 11 Nov 2026 10:01:55 +0000
+Subject: [PATCH] 1005 vince: vincemdptest tries seven ways to make the panel
+ take a new address
+
+Colour per step: blue the address without a flush, then green, red, cyan, magenta, yellow for a flush of RGB0 and LM0
+through CTL0..CTL4, white for a flush of every pipe and mixer through CTL0.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 32 +++++++++++++++++++++-----------
+ 1 file changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index 0bbe2ac..dc49394 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1103,24 +1103,34 @@ vince_mdp_flip_test(void)
+ 		printf("VINCE MDP TEST: RGB0 SRC0_ADDR is %#x, not %#x, giving up\n", *src0, buf0);
+ 		return;
+ 	}
+-	for (c = 0; c < 3; c++) {
+-		volatile uint32_t *flush = (volatile uint32_t *)(mdp + 0x600 + 0x100 * c + 0x18);
++	/*
++	 * Seven steps, one colour each (bytes B, G, R): 0 blue = the address only, no flush; 1 green .. 5 yellow =
++	 * address and a flush of RGB0 and LM0 through CTL0 .. CTL4; 6 white = a flush of every pipe and mixer
++	 * through CTL0. Each is shown for 1.5 s, then the loader's buffer comes back.
++	 */
++	for (c = 0; c < 7; c++) {
++		static const uint8_t colour[7] = { 1, 2, 4, 3, 5, 6, 7 };
+ 		volatile uint8_t *p = (volatile uint8_t *)fb;
++		volatile uint32_t *flush = (volatile uint32_t *)(mdp + 0x600 + 0x100 * (c >= 1 && c <= 5 ? c - 1 : 0) + 0x18);
+ 
+ 		for (i = 0; i < size; i++) {
+-			p[i] = ((i % 3) == c) ? 0xff : 0x00;
++			p[i] = ((colour[c] >> (i % 3)) & 1) ? 0xff : 0x00;
+ 		}
+ 		*src0 = buf1;
+-		*flush = (1u << 3) | (1u << 6);                 /* RGB0 and LM0 */
+-		for (t = 0; t < 100 && *flush != 0; t++) {
+-			delay(1000);
++		if (c != 0) {
++			*flush = (c == 6) ? 0x1fffu : ((1u << 3) | (1u << 6));
++			for (t = 0; t < 100 && *flush != 0; t++) {
++				delay(1000);
++			}
+ 		}
+-		printf("VINCE MDP TEST: CTL%u flush read back %#x after %u ms, SRC0_ADDR %#x\n", c, *flush, t, *src0);
+-		delay(2000 * 1000);
++		printf("VINCE MDP TEST: step %u colour %u: flush read back %#x, SRC0_ADDR %#x\n", c, colour[c], c != 0 ? *flush : 0, *src0);
++		delay(1500 * 1000);
+ 		*src0 = buf0;
+-		*flush = (1u << 3) | (1u << 6);
+-		for (t = 0; t < 100 && *flush != 0; t++) {
+-			delay(1000);
++		if (c != 0) {
++			*flush = (c == 6) ? 0x1fffu : ((1u << 3) | (1u << 6));
++			for (t = 0; t < 100 && *flush != 0; t++) {
++				delay(1000);
++			}
+ 		}
+ 		delay(500 * 1000);
+ 	}
+-- 
+2.43.0
+
