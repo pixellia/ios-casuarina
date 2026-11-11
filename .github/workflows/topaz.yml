@@ -8,6 +8,9 @@ on:
       - ".github/workflows/topaz.yml"
       - "userland/gpu/**"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15-intel
@@ -79,3 +82,15 @@ jobs:
         with:
           name: min-root-hfs
           path: out-min-hfs/
+      - name: Publish to ci-out branch
+        run: |
+          tar -czf /tmp/min-root-hfs.tar.gz -C out-min-hfs min-root.simg sweet-init
+          tar -czf /tmp/topaz-ios.tar.gz -C build-topaz/out .
+          cp topaz-build.log /tmp/topaz-build.log
+          git checkout --orphan ci-out
+          git rm -rf --cached .
+          git clean -fd
+          mv /tmp/min-root-hfs.tar.gz /tmp/topaz-ios.tar.gz /tmp/topaz-build.log .
+          git add -f min-root-hfs.tar.gz topaz-ios.tar.gz topaz-build.log
+          git -c user.name="github-actions" -c user.email="actions@github.com" commit -m "ci-out: min-root-hfs and topaz-ios"
+          git push -f origin ci-out
