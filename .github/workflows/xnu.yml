@@ -46,9 +46,12 @@ env:
 
 jobs:
   build:
-    # macos-15 still ships Xcode 16.x: its iig matches the xnu-8796 IORPC ABI
-    # (Xcode 16's iig emits IORPC.kernelContent, which this xnu lacks)
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    # macos-15 / macos-15-intel ship Xcode 16.x: its iig matches the xnu-8796 IORPC ABI
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +144,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: xnu-buildtree
+          name: ${{ matrix.runner == 'macos-15' && 'xnu-buildtree' || 'xnu-buildtree-intel' }}
           path: buildtree.tgz
           retention-days: 7
 
@@ -168,6 +171,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: xnu-kernel
+          name: ${{ matrix.runner == 'macos-15' && 'xnu-kernel' || 'xnu-kernel-intel' }}
           path: out/
           if-no-files-found: warn
