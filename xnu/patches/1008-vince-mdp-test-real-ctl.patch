@@ -1,0 +1,71 @@
+From 9233dde72cf0c767ec8f0a2a58629d6e65829e83 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Wed, 11 Nov 2026 10:56:53 +0000
+Subject: [PATCH] 1008 vince: vincemdptest uses the control blocks at
+ +0x1000/+0x1200/+0x1400 and prints them
+
+The Linux driver's msm8x53 table (the same MDP 5 v1.16) puts the three CTLs at +0x1000, +0x1200
+and +0x1400; we flushed at +0x600, which is empty, so no flush could ever take effect.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ bsd/dev/vince_adreno.c | 25 ++++++++++++++++++-------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/bsd/dev/vince_adreno.c b/bsd/dev/vince_adreno.c
+index e75c8b1..caf3786 100644
+--- a/bsd/dev/vince_adreno.c
++++ b/bsd/dev/vince_adreno.c
+@@ -1108,30 +1108,41 @@ vince_mdp_flip_test(void)
+ 		return;
+ 	}
+ 	/*
+-	 * Seven steps, one colour each (bytes B, G, R): 0 blue = the address only, no flush; 1 green .. 5 yellow =
+-	 * address and a flush of RGB0 and LM0 through CTL0 .. CTL4; 6 white = a flush of every pipe and mixer
+-	 * through CTL0. Each is shown for 1.5 s, then the loader's buffer comes back.
++	 * The control blocks of this MDP (5 v1.16, as msm8x53 in the Linux driver) are at +0x1000, +0x1200 and +0x1400 of the
++	 * MDP base, not at +0x600 (which reads all zeros: nothing lives there). First show what the loader left in them,
++	 * then seven steps, one colour each (bytes B, G, R): 0 blue = the address only, no flush; 1 green, 2 red, 3 cyan =
++	 * a flush of RGB0 and LM0 through CTL0, CTL1, CTL2; 4 magenta, 5 yellow, 6 white = a flush of every bit through
++	 * CTL0, CTL1, CTL2. Each is shown for 1.5 s, then the loader's buffer comes back.
+ 	 */
++	for (c = 0; c < 3; c++) {
++		volatile uint32_t *r = (volatile uint32_t *)(mdp + 0x1000 + 0x200 * c);
++
++		printf("VINCE MDP TEST: CTL%u: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n", c, r[0], r[1], r[2], r[3],
++		    r[4], r[5], r[6], r[7], r[8], r[9]);
++	}
+ 	for (c = 0; c < 7; c++) {
+ 		static const uint8_t colour[7] = { 1, 2, 4, 3, 5, 6, 7 };
++		static const uint8_t which[7] = { 0, 0, 1, 2, 0, 1, 2 };
+ 		volatile uint8_t *p = (volatile uint8_t *)fb;
+-		volatile uint32_t *flush = (volatile uint32_t *)(mdp + 0x600 + 0x100 * (c >= 1 && c <= 5 ? c - 1 : 0) + 0x18);
++		volatile uint32_t *flush = (volatile uint32_t *)(mdp + 0x1000 + 0x200 * which[c] + 0x18);
++		uint32_t bits = c >= 4 ? 0xffffffffu : ((1u << 3) | (1u << 6));
+ 
+ 		for (i = 0; i < size; i++) {
+ 			p[i] = ((colour[c] >> (i % 3)) & 1) ? 0xff : 0x00;
+ 		}
+ 		*src0 = buf1;
+ 		if (c != 0) {
+-			*flush = (c == 6) ? 0x1fffu : ((1u << 3) | (1u << 6));
++			*flush = bits;
+ 			for (t = 0; t < 100 && *flush != 0; t++) {
+ 				delay(1000);
+ 			}
+ 		}
+-		printf("VINCE MDP TEST: step %u colour %u: flush read back %#x, SRC0_ADDR %#x\n", c, colour[c], c != 0 ? *flush : 0, *src0);
++		printf("VINCE MDP TEST: step %u colour %u: flush read back %#x after %u ms, SRC0_ADDR %#x\n", c, colour[c],
++		    c != 0 ? *flush : 0, t, *src0);
+ 		delay(1500 * 1000);
+ 		*src0 = buf0;
+ 		if (c != 0) {
+-			*flush = (c == 6) ? 0x1fffu : ((1u << 3) | (1u << 6));
++			*flush = bits;
+ 			for (t = 0; t < 100 && *flush != 0; t++) {
+ 				delay(1000);
+ 			}
+-- 
+2.43.0
+
