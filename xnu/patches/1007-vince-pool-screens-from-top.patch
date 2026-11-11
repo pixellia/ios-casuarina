@@ -1,0 +1,79 @@
+From 5efe604030f0fadff1db896df84305d6fa7ec6e7 Mon Sep 17 00:00:00 2001
+From: x <a@b>
+Date: Wed, 11 Nov 2026 10:49:15 +0000
+Subject: [PATCH] 1007 vince: take screen surfaces from the top of the GPU
+ pool, small buffers from the bottom
+
+First fit let the library's small buffers settle between the screens, and after hours of use no
+11 MiB piece was left (152 of 192 MiB used, largest free piece 5 MiB). Screens now come from
+the top of the pool downwards and the other buffers from the bottom up.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UTtYRgmKyxgNh36HwFrzar
+---
+ iokit/Kernel/arm/VinceGPU.cpp | 23 ++++++++++++++++-------
+ 1 file changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 59b1f71..7de5b31 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -202,9 +202,13 @@ poolMark(uint64_t unit, bool used)
+ 	}
+ }
+ 
+-/* the physical address of size bytes (a multiple of 4 KiB) of the pool, or 0; gPoolLock held */
++/*
++ * The physical address of size bytes (a multiple of 4 KiB) of the pool, or 0; gPoolLock held. The screens (top set)
++ * are taken from the top of the pool downwards and the library's buffers from the bottom up, so that the small
++ * buffers coming and going do not cut the pool into pieces too short for the next screen.
++ */
+ static uint64_t
+-poolAllocLocked(uint64_t size)
++poolAllocLocked(uint64_t size, bool top)
+ {
+ 	uint64_t need = size / GPU_POOL_UNIT, run = 0;
+ 
+@@ -214,13 +218,18 @@ poolAllocLocked(uint64_t size)
+ 			return 0;
+ 		}
+ 	}
+-	for (uint64_t i = 0; need != 0 && i < GPU_POOL_UNITS; i++) {
++	if (need == 0) {
++		return 0;
++	}
++	for (uint64_t n = 0; n < GPU_POOL_UNITS; n++) {
++		uint64_t i = top ? GPU_POOL_UNITS - 1 - n : n;
++
+ 		if (poolUsed(i)) {
+ 			run = 0;
+ 		} else if (++run == need) {
+-			uint64_t first = i + 1 - need;
++			uint64_t first = top ? i : i + 1 - need;
+ 
+-			for (uint64_t j = first; j <= i; j++) {
++			for (uint64_t j = first; j < first + need; j++) {
+ 				poolMark(j, true);
+ 			}
+ 			return GPU_POOL_PA + first * GPU_POOL_UNIT;
+@@ -284,7 +293,7 @@ poolAlloc(uint64_t size)
+ 
+ 	poolLockInit();
+ 	IOLockLock(gPoolLock);
+-	pa = poolAllocLocked(size);
++	pa = poolAllocLocked(size, false);
+ 	IOLockUnlock(gPoolLock);
+ 	return pa;
+ }
+@@ -417,7 +426,7 @@ vince_pool_alloc(uint64_t size)
+ 	IOLockLock(gPoolLock);
+ 	/* the buffers of the library need room too: the screens take at most 8 of the 192 MiB's 12 */
+ 	if (gPlaceHeld < 8) {
+-		pa = poolAllocLocked(size);
++		pa = poolAllocLocked(size, true);
+ 		if (pa != 0) {
+ 			gPlaceHeld++;
+ 		}
+-- 
+2.43.0
+
