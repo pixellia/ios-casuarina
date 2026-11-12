@@ -1,0 +1,83 @@
+diff --git a/iokit/Kernel/arm/VinceGPU.cpp b/iokit/Kernel/arm/VinceGPU.cpp
+index 481ed14..cc47872 100644
+--- a/iokit/Kernel/arm/VinceGPU.cpp
++++ b/iokit/Kernel/arm/VinceGPU.cpp
+@@ -155,6 +155,19 @@ cacheMode(void)
+ 	return mode == 1;
+ }
+ 
++/*
++ * The cache mode the pool's physical descriptors are created with. Left at the default, IODefaultCacheBits() asks
++ * pmap_cache_attributes(), which answers VM_WIMG_IO (Device memory) for a physical address the VM does not manage
++ * and that is in no io-range, so the device pager of the buffer starts out as Device memory whatever the mapping
++ * asks for later. Device (and non-cacheable) memory faults on unaligned and atomic accesses (EXC_ARM_DA_ALIGN).
++ * Create the descriptor with the mode the buffer is mapped with (kIOMemoryBufferCacheShift: cache mode of a descriptor).
++ */
++static IOOptionBits
++poolCacheOption(void)
++{
++	return (IOOptionBits)((cacheMode() ? kIOCopybackCache : kIOWriteCombineCache) << kIOMemoryBufferCacheShift);
++}
++
+ static void
+ cacheSync(struct gpu_buffer *b)
+ {
+@@ -814,7 +827,7 @@ VinceGPUUserClient::gemNew(struct msm_gem_new *request)
+ 	}
+ 	IOLockUnlock(gGPULock);
+ 	if (pooled != 0) {
+-		memory = IOMemoryDescriptor::withAddressRange(pooled, size, kIODirectionInOut | kIOMemoryTypePhysical64, NULL);
++		memory = IOMemoryDescriptor::withAddressRange(pooled, size, kIODirectionInOut | kIOMemoryTypePhysical64 | poolCacheOption(), NULL);
+ 		if (memory == NULL) {
+ 			IOLockLock(gGPULock);
+ 			poolFree(pooled, size);
+@@ -912,7 +925,7 @@ VinceGPUUserClient::surfaceBuffer(struct vince_surface_req *request)
+ 		return kIOReturnSuccess;
+ 	}
+ 
+-	memory = IOMemoryDescriptor::withAddressRange(s->poolPhys, s->poolSize, kIODirectionInOut | kIOMemoryTypePhysical64, NULL);
++	memory = IOMemoryDescriptor::withAddressRange(s->poolPhys, s->poolSize, kIODirectionInOut | kIOMemoryTypePhysical64 | poolCacheOption(), NULL);
+ 	if (memory == NULL) {
+ 		s->release();
+ 		return kIOReturnNoMemory;
+diff --git a/osfmk/arm/pmap/pmap.c b/osfmk/arm/pmap/pmap.c
+index 9298a64..453935d 100644
+--- a/osfmk/arm/pmap/pmap.c
++++ b/osfmk/arm/pmap/pmap.c
+@@ -7453,6 +7453,10 @@ pmap_has_managed_page(ppnum_t first, ppnum_t last)
+ 	if (ptoa(last) < vm_first_phys) {
+ 		return FALSE;
+ 	}
++	/* vince: the hole between the two banks (vinceram3g=1) holds the GPU pool; none of it is managed */
++	if (vince_gap_end != 0 && ptoa(first) >= vince_gap_start && ptoa(last) < vince_gap_end) {
++		return FALSE;
++	}
+ 
+ 	return TRUE;
+ }
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index b2e14ec..39969bb 100644
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -1498,6 +1498,21 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+ 		codes[0] = result;
+ 	} else if (is_alignment_fault(fault_code)) {
+ 		kern_return_t vmfkr = KERN_SUCCESS;
++#if defined(VINCE)
++		{
++			/* vince: which access faulted? (Device/non-cacheable memory, an atomic, ...) The first few only. */
++			static int vince_align_reports;
++			if (vince_align_reports < 8) {
++				extern int printf(const char *, ...);
++				uint32_t insn = 0;
++				vince_align_reports++;
++				COPYIN(get_saved_state_pc(state), (char *)&insn, sizeof(insn));
++				printf("VINCE ALIGN: tid %llu esr 0x%x fsc 0x%x far 0x%llx pc 0x%llx insn 0x%08x\n",
++				    (unsigned long long)thread_tid(thread), esr, (unsigned)fault_code, (unsigned long long)fault_addr,
++				    (unsigned long long)get_saved_state_pc(state), insn);
++			}
++		}
++#endif /* VINCE */
+ 		thread->machine.recover_esr = 0;
+ 		thread->machine.recover_far = 0;
+ 		int result = handle_alignment_fault_from_user(state, &vmfkr);
